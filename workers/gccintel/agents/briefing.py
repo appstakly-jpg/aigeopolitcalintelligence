@@ -271,8 +271,9 @@ def build_content(conn: psycopg.Connection, tenant_id: str, report_type: str, st
     content = {"title": title, "report_type": report_type, "country_code": country,
                "period": {"start": start.isoformat(), "end": end.isoformat()}, "is_demo": is_demo,
                "sections": sections,
+               # The incident version each statement was written from, so reviewers can see what changed since.
                "incidents": [{"id": str(i["id"]), "ref": i["ref"], "title": i["title"], "severity": i["severity"],
-                              "verification": i["verification_status"]} for i in incidents]}
+                              "verification": i["verification_status"], "version": i["version"]} for i in incidents]}
     coverage = {"incident_count": len(incidents), "citation_count": len(book.items),
                 "sources_enabled": n_sources, "countries_without_incidents":
                     [c for c in GCC_COUNTRIES if not any(i["country_code"] == c or c in (i["affected_countries"] or [])

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { actionSession } from "@/lib/auth";
 import { withRls } from "@/lib/db";
 import { audit, enqueueJob } from "@/lib/jobs";
+import { changedSinceGenerated, describeChanges, type ChangedIncident } from "@/lib/reports";
 
 type State = { error?: string; ok?: string } | undefined;
 const msg = (e: unknown) => {
@@ -70,22 +71,30 @@ export async function regenerateReportAction(_p: State, form: FormData): Promise
 
 export async function setReportStatusAction(_p: State, form: FormData): Promise<State> {
   try {
-    const d = z.object({ id: z.string().uuid(), to: z.enum(["draft", "in_review", "published", "archived"]), note: z.string().trim().max(500).optional() })
-      .parse({ id: form.get("id"), to: form.get("to"), note: form.get("note") || undefined });
+    const d = z.object({ id: z.string().uuid(), to: z.enum(["draft", "in_review", "published", "archived"]), note: z.string().trim().max(500).optional(),
+      acknowledge: z.enum(["on"]).optional() })
+      .parse({ id: form.get("id"), to: form.get("to"), note: form.get("note") || undefined, acknowledge: form.get("acknowledge_changes") || undefined });
     const s = await actionSession(d.to === "published" || d.to === "archived" ? ["admin", "reviewer"] : ["admin", "analyst", "reviewer"]);
     await withRls(s, async (tx) => {
-      const [r] = await tx<{ status: string }[]>`select status from reports where id = ${d.id} for update`;
+      const [r] = await tx<{ status: string; current_version: number }[]>`select status, current_version from reports where id = ${d.id} for update`;
       if (!r) throw new Error("Report not found");
       const allowed: Record<string, string[]> = { draft: ["in_review", "archived"], in_review: ["draft", "published", "archived"], published: ["archived"], archived: [] };
       if (!allowed[r.status]?.includes(d.to)) throw new Error(`Cannot move a ${r.status.replace("_", " ")} report to ${d.to.replace("_", " ")}.`);
+      let changed: ChangedIncident[] = [];
       if (d.to === "published") {
+        // Evidence may have moved on since this version was written: make the reviewer decide knowingly.
+        changed = await changedSinceGenerated(tx, d.id, r.current_version);
+        if (changed.length && !d.acknowledge) {
+          throw new Error(`Cited incidents changed after this version was generated: ${describeChanges(changed)}. Regenerate the report, or confirm you have checked the changes.`);
+        }
         await tx`update reports set status = 'published', published_at = now(), published_by = ${s.userId} where id = ${d.id}`;
         await tx`update analyst_reviews set status = 'approved', decided_by = ${s.userId}, decided_at = now(), decision_note = ${d.note ?? "published"}
                  where item_type = 'report' and item_id = ${d.id} and status = 'open'`;
       } else {
         await tx`update reports set status = ${d.to} where id = ${d.id}`;
       }
-      await audit(tx, s, `report.${d.to}`, "report", d.id, { from: r.status, note: d.note ?? null });
+      await audit(tx, s, `report.${d.to}`, "report", d.id, { from: r.status, note: d.note ?? null,
+        ...(changed.length ? { acknowledged_changes: changed.map((c) => ({ ref: c.ref, cited_version: c.cited_version, version: c.version })) } : {}) });
     });
     revalidatePath(`/reports/${d.id}`);
     return { ok: `Report moved to ${d.to.replace("_", " ")}.` };

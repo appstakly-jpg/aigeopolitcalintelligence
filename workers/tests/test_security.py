@@ -138,3 +138,33 @@ def briefing_period():
     from datetime import UTC, datetime, timedelta
     end = datetime.now(UTC)
     return end - timedelta(days=1), end
+
+
+def test_reference_numbers_only_for_member_tenant(conn, two_tenants):
+    """app.next_ref is SECURITY DEFINER: a signed-in user may only number tenants they belong to."""
+    a, b, _, _ = two_tenants
+    analyst_a = make_user(conn, a, "analyst")
+    with as_user(conn, analyst_a, a):
+        assert fetch_one(conn, "select app.next_ref(%s, 'TEST') as n", (a,))["n"] >= 1
+    for claimed in (a, b):  # another tenant's counter; a claimed tenant without membership
+        with pytest.raises(psycopg.errors.InsufficientPrivilege), as_user(conn, analyst_a, claimed):
+            conn.execute("select app.next_ref(%s, 'TEST')", (b,))
+
+
+def test_reviewers_see_every_alert_but_not_rule_destinations(conn, tenant, settings, web, fetcher):
+    """Reviewers must see other users' alerts to approve them; the rules behind them (which hold
+    delivery destinations) stay private to their owner and admins."""
+    from conftest import add_rule
+    client = make_user(conn, tenant, "client")
+    reviewer = make_user(conn, tenant, "reviewer")
+    other_client = make_user(conn, tenant, "client")
+    rule = add_rule(conn, tenant, client, name="Client KW rule", countries=["KW"], min_severity=1)
+    _seed_incident(conn, tenant, settings, web, fetcher, "rv")
+    with as_user(conn, reviewer, tenant):
+        rows = fetch_all(conn, """select a.id, rs.name, rs.owner_role from alerts a
+                                  left join lateral app.alert_rule_summary(a.rule_id) rs on true""")
+        assert rows and all(r["name"] == "Client KW rule" and r["owner_role"] == "client" for r in rows)
+        assert fetch_all(conn, "select id from alert_rules") == []
+    with as_user(conn, other_client, tenant):
+        assert fetch_all(conn, "select id from alerts") == []
+        assert fetch_one(conn, "select * from app.alert_rule_summary(%s)", (rule["id"],)) is None

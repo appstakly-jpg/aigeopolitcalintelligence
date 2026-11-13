@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
   const offset = Math.max(0, Number(sp.offset) || 0);
   const { rows, total } = await withRls(s, (tx) => listIncidents(tx, f, range, limit, offset));
   const data = rows.map((r) => ({
-    id: r.id, ref: r.ref, title: r.title, summary: r.summary, status: r.status, verification_status: r.verification_status, credibility: r.credibility,
+    id: r.id, ref: r.ref, title: r.title, summary: r.summary, status: r.status, verification_status: r.verification_status, review_status: r.review_status, credibility: r.credibility,
     severity: r.severity, confidence: r.confidence, primary_category: r.primary_category, categories: r.categories, country_code: r.country_code,
     affected_countries: r.affected_countries, location_name: r.location_name, lat: r.lat, lon: r.lon, geo_precision: r.geo_precision,
     geo_confidence: r.geo_confidence, casualties_killed: r.casualties_killed, casualties_injured: r.casualties_injured, source_count: r.source_count,

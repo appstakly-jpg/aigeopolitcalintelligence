@@ -27,7 +27,7 @@ INFRA_CATEGORIES = {"drone_missile", "energy_disruption", "maritime_incident", "
 SNAPSHOT_FIELDS = ["title", "summary", "status", "verification_status", "credibility", "review_status", "severity",
                    "confidence", "primary_category", "categories", "occurred_at", "occurred_at_precision",
                    "country_code", "affected_countries", "geo_entity_id", "location_name", "lat", "lon",
-                   "geo_precision", "geo_confidence", "actors", "sectors", "casualties_killed", "casualties_injured",
+                   "geo_precision", "geo_confidence", "geo_source", "actors", "sectors", "casualties_killed", "casualties_injured",
                    "casualty_note", "source_count", "independent_source_count", "official_statement_count",
                    "uncertainty_notes"]
 
@@ -284,14 +284,37 @@ def recompute(conn: psycopg.Connection, incident_id: str, *, taxonomy: Taxonomy,
     detail = dict(inc["verification_detail"] or {})
     analyst_confirmed = bool(detail.get("analyst_confirmed"))
     # Corrections and analyst edits persist as overrides so later recomputes do not undo them.
+    # The web app records which entries an analyst set (`analyst_keys`) and the publisher values they
+    # replaced (`replaced_by_analyst`), so removing analyst overrides never discards a publisher's
+    # correction. A newer publisher correction to the same field replaces the analyst's value and
+    # sends the incident back to review.
     overrides = dict(detail.get("overrides") or {})
+    analyst_keys = list(overrides.get("analyst_keys") or [])
+    replaced = dict(overrides.get("replaced_by_analyst") or {})
+
+    def publisher_sets(key: str, values: dict) -> None:
+        overrides.update(values)
+        if key in analyst_keys:
+            analyst_keys.remove(key)
+        replaced.pop(key, None)
+
     if location_override and location_override.get("entity_id"):
-        overrides["location"] = location_override
+        publisher_sets("location", {"location": location_override})
     if title_override:
-        overrides["title"] = title_override
+        publisher_sets("title", {"title": title_override})
     if casualty_override is not None:
-        overrides["casualties"] = list(casualty_override)
-        overrides["casualty_note"] = "Casualty figures as corrected by the publisher."
+        publisher_sets("casualties", {"casualties": list(casualty_override),
+                                      "casualty_note": "Casualty figures as corrected by the publisher."})
+    if analyst_keys or "analyst_keys" in overrides:
+        overrides["analyst_keys"] = analyst_keys
+    if replaced or "replaced_by_analyst" in overrides:
+        overrides["replaced_by_analyst"] = replaced
+    # Title, location and unstated casualty figures are not re-derived from later evidence; without an
+    # override they are the values derived when the incident was created (version 1), so removing an
+    # override restores them.
+    base_row = fetch_one(conn, "select snapshot from incident_revisions where incident_id = %s and version = 1",
+                         (incident_id,))
+    base: dict = (base_row or {}).get("snapshot") or {}
     ver = verification.assess(evidence, min_independent=int(verification_policy.get("corroboration_min_independent", 2)),
                               analyst_confirmed=analyst_confirmed,
                               auto_confirm=not verification_policy.get("confirmed_requires_analyst", True))
@@ -318,9 +341,9 @@ def recompute(conn: psycopg.Connection, incident_id: str, *, taxonomy: Taxonomy,
             if n not in notes and not n.startswith("Location from gazetteer"):
                 notes.append(n)
     categories = [k for k, _ in sorted(cat_scores.items(), key=lambda kv: kv[1], reverse=True)] or inc["categories"]
-    killed = max(killed_vals) if killed_vals else inc["casualties_killed"]
-    injured = max(injured_vals) if injured_vals else inc["casualties_injured"]
-    casualty_note = inc["casualty_note"]
+    killed = max(killed_vals) if killed_vals else (base.get("casualties_killed") if base else inc["casualties_killed"])
+    injured = max(injured_vals) if injured_vals else (base.get("casualties_injured") if base else inc["casualties_injured"])
+    casualty_note = base.get("casualty_note") if base else inc["casualty_note"]
     if killed_vals and len(set(killed_vals)) > 1:
         casualty_note = f"Reports differ on fatalities ({min(killed_vals)}-{max(killed_vals)}); highest reported figure shown."
     if overrides.get("casualties") is not None:
@@ -339,6 +362,16 @@ def recompute(conn: psycopg.Connection, incident_id: str, *, taxonomy: Taxonomy,
             "geo_confidence": loc_o.get("confidence"),
             "geo_source": loc_o.get("source") if loc_o.get("lat") is not None else None,
             "country_code": loc_o.get("country_code") or inc["country_code"],
+        })
+    elif base and base.get("geo_entity_id") != inc["geo_entity_id"]:
+        geo_source = base.get("geo_source")
+        if geo_source is None and base.get("lat") is not None and base.get("geo_entity_id"):
+            geo_source = f"gazetteer:{base['geo_entity_id']}"  # snapshots written before geo_source was recorded
+        updates.update({
+            "geo_entity_id": base.get("geo_entity_id"), "location_name": base.get("location_name"),
+            "lat": base.get("lat"), "lon": base.get("lon"), "geo_precision": base.get("geo_precision") or "unknown",
+            "geo_confidence": base.get("geo_confidence"), "geo_source": geo_source,
+            "country_code": base.get("country_code") or inc["country_code"],
         })
     geo_entity = updates.get("geo_entity_id", inc["geo_entity_id"])
     geo_kind = gazetteer.entities[geo_entity].kind if geo_entity in gazetteer.entities else None
@@ -383,6 +416,8 @@ def recompute(conn: psycopg.Connection, incident_id: str, *, taxonomy: Taxonomy,
     })
     if overrides.get("title"):
         updates["title"] = overrides["title"][:300]
+    elif base.get("title") and base["title"] != inc["title"]:
+        updates["title"] = base["title"]
     tmp = {**inc, **{k: (v.obj if hasattr(v, "obj") else v) for k, v in updates.items()}}
     tmp["summary"] = overrides.get("summary") or compose_summary(tmp, taxonomy, ver)
     updates["summary"] = tmp["summary"]

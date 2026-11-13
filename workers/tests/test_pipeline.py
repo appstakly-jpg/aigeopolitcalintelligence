@@ -2,7 +2,7 @@
 denials, retractions, prompt injection (including a compromised model) and notification dedup."""
 
 import pytest
-from conftest import add_rule, add_source, make_user, rss
+from conftest import add_rule, add_source, as_user, make_user, rss
 
 from gccintel.agents import briefing
 from gccintel.db import fetch_all, fetch_one
@@ -256,3 +256,104 @@ def test_llm_call_cap_falls_back_to_rules(conn, tenant, settings, web, fetcher, 
     assert inc is not None  # pipeline continued with rule-based extraction
     cand = fetch_one(conn, "select extraction from incident_candidates where tenant_id = %s", (tenant,))
     assert any("LLM extraction unavailable" in n for n in cand["extraction"]["uncertainty_notes"])
+
+
+def _analyst_edit(conn, tenant, analyst, settings, incident_id, overrides, note):
+    """What the web app's editIncidentAction does (store overrides and queue recompute_incident, as the
+    signed-in analyst under row-level security), followed by the worker running that job."""
+    from gccintel import queue
+    from gccintel.db import jsonb
+    from gccintel.worker import run_job
+    with as_user(conn, analyst, tenant):
+        conn.execute("""update incidents set verification_detail = jsonb_set(coalesce(verification_detail, '{}'), '{overrides}', %s)
+                        where id = %s""", (jsonb(overrides), incident_id))
+        queued = fetch_one(conn, """insert into jobs(tenant_id, kind, payload, priority, requested_by)
+                                    values (%s, 'recompute_incident', %s, 2, %s) returning id""",
+                           (tenant, jsonb({"incident_id": str(incident_id), "note": note}), analyst))
+    job = queue.claim(conn, "test-worker", ["recompute_incident"])
+    assert job["id"] == queued["id"]
+    assert run_job(conn, job, settings) == "succeeded", fetch_one(conn, "select last_error from jobs where id = %s", (job["id"],))
+    return fetch_one(conn, "select * from incidents where id = %s", (incident_id,))
+
+
+MANAMA = {"entity_id": "city:bh:manama", "name": "Manama", "lat": 26.23, "lon": 50.59, "precision": "city",
+          "confidence": 0.9, "source": "analyst:gazetteer:city:bh:manama (±6 km)", "country_code": "BH"}
+
+
+def test_analyst_correction_rederives_versions_and_alerts(conn, tenant, settings, web, fetcher):
+    s1, s2, s3 = _sources(conn, tenant)
+    analyst = make_user(conn, tenant, "analyst")
+    client = make_user(conn, tenant, "client")
+    add_rule(conn, tenant, client, name="KW outages", countries=["KW"], min_severity=2)
+    first = {"title": "Substation fire causes power outage in parts of Kuwait City",
+             "body": "A fire at a substation caused a power outage in Kuwait City, the ministry said. Twelve people were injured.",
+             "link": "https://w1.test/kw", "minutes_ago": 90}
+    web.set(s1["url"], rss([first]))
+    web.set(s2["url"], rss([]))
+    web.set(s3["url"], rss([]))
+    _, mail = _run(conn, tenant, settings, fetcher)
+    assert len(mail.sent) == 1
+    inc = fetch_one(conn, "select * from incidents where tenant_id = %s", (tenant,))
+    computed_severity = inc["severity"]
+    assert computed_severity < 5
+
+    # Publisher correction: stored as a publisher override.
+    web.set(s1["url"], rss([first, {
+        "title": "CORRECTION: Substation fire and power outage were in the Ahmadi area",
+        "body": "CORRECTION: The substation fire and power outage occurred in the Ahmadi area. An earlier version of this report gave an incorrect location.",
+        "link": "https://w1.test/kw-correction", "minutes_ago": 20}]))
+    _run(conn, tenant, settings, fetcher)
+    inc = fetch_one(conn, "select * from incidents where id = %s", (inc["id"],))
+    publisher = inc["verification_detail"]["overrides"]
+    assert inc["geo_entity_id"] == "city:kw:ahmadi" and publisher["location"]["entity_id"] == "city:kw:ahmadi"
+    publisher_title = inc["title"]
+    conn.execute("update analyst_reviews set status = 'approved' where item_id = %s", (inc["id"],))
+    alerts_before = fetch_all(conn, "select id from alerts where incident_id = %s", (inc["id"],))
+
+    # Analyst raises severity and moves the location to Bahrain (as lib/overrides.ts stores it).
+    edited = _analyst_edit(conn, tenant, analyst, settings, inc["id"], {
+        **publisher, "severity": 5, "severity_reason": "Operator confirmed grid-wide impact", "location": MANAMA,
+        "analyst_keys": ["severity", "location"], "replaced_by_analyst": {"location": {"location": publisher["location"]}},
+    }, "Location confirmed by the operator")
+    assert edited["version"] == inc["version"] + 1
+    assert edited["severity"] == 5 and "analyst override" in edited["severity_rationale"]
+    assert edited["geo_entity_id"] == "city:bh:manama" and edited["country_code"] == "BH"
+    assert edited["title"] == publisher_title  # the publisher's corrected title is untouched
+    assert edited["review_status"] == "pending"
+    assert fetch_one(conn, "select 1 as x from analyst_reviews where item_id = %s and status = 'open'", (inc["id"],))
+    rev = fetch_one(conn, "select * from incident_revisions where incident_id = %s order by version desc limit 1", (inc["id"],))
+    assert rev["change_type"] == "correction" and str(rev["changed_by"]) == analyst and rev["changed_by_agent"] is None
+    assert rev["change_note"].startswith("Analyst correction: Location confirmed")
+    assert {"severity", "geo_entity_id"} <= set(rev["changed_fields"])
+    # The subscriber who was alerted about Kuwait hears about the correction even though the rule
+    # (Kuwait only) no longer matches; at severity 5 it waits for human review instead of auto-sending.
+    new_alerts = fetch_all(conn, "select * from alerts where incident_id = %s and id <> all(%s::uuid[])",
+                           (inc["id"], [a["id"] for a in alerts_before]))
+    assert [(a["kind"], a["impact"], a["status"]) for a in new_alerts] == [("correction", "high", "pending_review")]
+
+    # Removing the analyst's overrides restores derived values and the publisher's correction.
+    restored = _analyst_edit(conn, tenant, analyst, settings, inc["id"],
+                             {**publisher, "analyst_keys": [], "replaced_by_analyst": {}}, "Overrides removed")
+    assert restored["version"] == edited["version"] + 1
+    assert restored["severity"] == computed_severity
+    assert restored["geo_entity_id"] == "city:kw:ahmadi" and restored["country_code"] == "KW"
+    assert restored["title"] == publisher_title
+
+
+def test_removing_analyst_overrides_restores_values_from_creation(conn, tenant, settings, web, fetcher):
+    (s1,) = _sources(conn, tenant, 1)
+    analyst = make_user(conn, tenant, "analyst")
+    web.set(s1["url"], rss([{"title": "Power outage hits Kuwait City districts",
+                             "body": "A power outage affected districts of Kuwait City, the ministry said.",
+                             "link": "https://w1.test/kw-o", "minutes_ago": 30}]))
+    _run(conn, tenant, settings, fetcher)
+    inc = fetch_one(conn, "select * from incidents where tenant_id = %s", (tenant,))
+    edited = _analyst_edit(conn, tenant, analyst, settings, inc["id"], {
+        "title": "Analyst title", "location": MANAMA, "casualties": [2, 5], "casualty_note": "Casualty figures set by analyst: x",
+        "analyst_keys": ["title", "location", "casualties"], "replaced_by_analyst": {}}, "Analyst edit")
+    assert (edited["title"], edited["geo_entity_id"], edited["casualties_killed"]) == ("Analyst title", "city:bh:manama", 2)
+    restored = _analyst_edit(conn, tenant, analyst, settings, inc["id"], {"analyst_keys": [], "replaced_by_analyst": {}},
+                             "Overrides removed")
+    for field in ("title", "geo_entity_id", "location_name", "lat", "lon", "geo_precision", "geo_source", "country_code",
+                  "casualties_killed", "casualties_injured"):
+        assert restored[field] == inc[field], field

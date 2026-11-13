@@ -10,6 +10,7 @@ import { withRls } from "@/lib/db";
 import { casualtyText, fmtDateTime, humanize } from "@/lib/format";
 import { countryName } from "@/lib/i18n";
 import { taxonomyLabels, type IncidentRow } from "@/lib/queries";
+import { describeOverrides, hasAnalystOverrides } from "@/lib/overrides";
 import { isUuid } from "@/lib/utils";
 import { confirmIncidentAction, editIncidentAction, reviewIncidentAction, setStatusAction } from "./actions";
 
@@ -75,7 +76,7 @@ export default async function IncidentPage({ params }: { params: Promise<{ id: s
   const ctx = (inc.context ?? {}) as { gcc_exposure?: { country: string; country_code: string; pathways: string[] }[]; watch_indicators?: string[]; method?: string };
   const byArticle = new Map(d.evidence.map((e, i) => [e.article_id, { ...e, n: i + 1 }]));
   const label = (k: string) => d.labels[k]?.label ?? k;
-  const overrides = Object.keys(vd.overrides ?? {});
+  const overrides = describeOverrides(vd.overrides);
 
   return (
     <>
@@ -241,7 +242,7 @@ export default async function IncidentPage({ params }: { params: Promise<{ id: s
               {vd.official_origins?.length ? <div><span className="text-muted-foreground">Official statements from:</span> {vd.official_origins.join(", ")}</div> : null}
               {vd.retracted_origins?.length ? <div><span className="text-muted-foreground">Retracted by:</span> {vd.retracted_origins.join(", ")}</div> : null}
               {vd.analyst_confirmed ? <Badge className="w-fit border-emerald-300 text-emerald-700">Confirmed by analyst</Badge> : null}
-              {overrides.length ? <div className="text-amber-700 dark:text-amber-300">Analyst overrides in effect: {overrides.join(", ")}</div> : null}
+              {overrides.length ? <div className="text-amber-700 dark:text-amber-300">Overrides in effect: {overrides.map((o) => `${humanize(o.key)} (${o.by})`).join(", ")}</div> : null}
             </CardBody>
           </Card>
 
@@ -341,7 +342,7 @@ export default async function IncidentPage({ params }: { params: Promise<{ id: s
                   </Label>
                   <Label>Summary<Textarea name="summary" maxLength={4000} placeholder="Leave blank to keep the generated summary" /></Label>
                   <Label>Reason for the correction (required)<Textarea name="note" required minLength={3} maxLength={1000} /></Label>
-                  {overrides.length ? <label className="flex items-center gap-2 text-xs"><input type="checkbox" name="reset" /> Remove all analyst overrides instead</label> : null}
+                  {hasAnalystOverrides(vd.overrides) ? <label className="flex items-center gap-2 text-xs"><input type="checkbox" name="remove_overrides" /> Remove analyst overrides instead (publisher corrections stay)</label> : null}
                 </ActionForm>
               </CardBody>
             </Card>

@@ -7,6 +7,7 @@ import { can, requireSession } from "@/lib/auth";
 import { withRls } from "@/lib/db";
 import { fmtDateTime, humanize } from "@/lib/format";
 import { countryName } from "@/lib/i18n";
+import { changedSinceGenerated } from "@/lib/reports";
 import { first, isUuid, type SearchParams } from "@/lib/utils";
 import { exportReportAction, regenerateReportAction, setReportStatusAction } from "../actions";
 
@@ -36,7 +37,8 @@ export default async function ReportPage({ params, searchParams }: { params: Pro
       select id, version, html, citations, coverage, citation_check from report_versions where report_id = ${id} and version = ${wanted}`;
     const exports = v ? await tx<{ id: string; format: string; size: number; created_at: Date }[]>`
       select id, format, octet_length(bytes) as size, created_at from report_exports where report_version_id = ${v.id} order by created_at desc` : [];
-    return { r, versions, v, exports };
+    const changed = v && r.status !== "archived" ? await changedSinceGenerated(tx, r.id, v.version) : [];
+    return { r, versions, v, exports, changed };
   });
   if (!d) notFound();
   const { r, v } = d;
@@ -61,6 +63,13 @@ export default async function ReportPage({ params, searchParams }: { params: Pro
           <Notice tone="error" className="mb-4">Citation check FAILED for version {v.version}; this version cannot be published. {v.citation_check?.errors?.join(" ")}</Notice>
         )
       ) : <Notice tone="warn" className="mb-4">This version was not found.</Notice>}
+      {d.changed.length ? (
+        <Notice tone="warn" className="mb-4">
+          {d.changed.length} cited incident{d.changed.length === 1 ? "" : "s"} changed after version {v?.version} was generated:{" "}
+          {d.changed.map((c, i) => <span key={c.id}>{i ? ", " : ""}<Link className="underline" href={`/incidents/${c.id}`}>{c.ref}</Link>{c.cited_version ? ` (v${c.cited_version} → v${c.version})` : ""}</span>)}.
+          {r.status === "published" ? " This published version does not reflect those changes." : " Regenerate the report, or check the changes before publishing."}
+        </Notice>
+      ) : null}
       {!isCurrent && v ? <Notice tone="info" className="mb-4">You are viewing version {v.version}; the current version is {r.current_version}. <Link className="underline" href={`/reports/${r.id}`}>View current</Link></Notice> : null}
 
       <div className="grid gap-4 xl:grid-cols-[1fr_340px]">
@@ -105,6 +114,10 @@ export default async function ReportPage({ params, searchParams }: { params: Pro
                     <ActionForm action={setReportStatusAction} submit="Publish">
                       <input type="hidden" name="id" value={r.id} /><input type="hidden" name="to" value="published" />
                       <Input name="note" placeholder="Review note (optional)" maxLength={500} />
+                      {d.changed.length && isCurrent ? (
+                        <label className="flex items-start gap-2 text-xs"><input type="checkbox" name="acknowledge_changes" required className="mt-0.5" />
+                          I have checked the {d.changed.length} changed incident{d.changed.length === 1 ? "" : "s"} and this version is still accurate.</label>
+                      ) : null}
                     </ActionForm>
                     <ActionForm action={setReportStatusAction} submit="Return to draft" variant="outline">
                       <input type="hidden" name="id" value={r.id} /><input type="hidden" name="to" value="draft" />

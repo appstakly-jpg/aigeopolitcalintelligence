@@ -5,6 +5,7 @@ import { z } from "zod";
 import { actionSession } from "@/lib/auth";
 import { withRls, type Tx } from "@/lib/db";
 import { audit, enqueueJob } from "@/lib/jobs";
+import { removeAnalystOverrides, setAnalystOverrides, type Overrides } from "@/lib/overrides";
 
 export type ActionState = { error?: string; ok?: string } | undefined;
 
@@ -79,40 +80,44 @@ export async function editIncidentAction(_p: ActionState, form: FormData): Promi
       location: z.string().regex(/^[a-z0-9_:-]{1,80}$/i).optional().or(z.literal("")),
       killed: optInt, injured: optInt,
       categories: z.array(z.string().regex(/^[a-z_]{2,40}$/)).max(6),
-      reset: z.enum(["on"]).optional(),
+      reset: z.enum(["on"]).optional(), // form field "remove_overrides"
     }).parse({
       id: form.get("id"), note: form.get("note"), title: form.get("title") || undefined, summary: form.get("summary") || undefined,
       severity: form.get("severity") ?? "", severity_reason: form.get("severity_reason") || undefined, location: form.get("location") ?? "",
       killed: form.get("killed") ?? "", injured: form.get("injured") ?? "", categories: form.getAll("categories").map(String),
-      reset: form.get("reset") || undefined,
+      // Not named "reset": a form control with that name shadows HTMLFormElement.reset(), which React calls.
+      reset: form.get("remove_overrides") || undefined,
     });
     if (data.severity && !data.severity_reason) throw new Error("A severity override needs a reason.");
     const result = await withRls(s, async (tx) => {
       const [cur] = await tx<{ verification_detail: Record<string, unknown> | null }[]>`
         select verification_detail from incidents where id = ${data.id} for update`;
       if (!cur) throw new Error("Incident not found");
-      const overrides: Record<string, unknown> = data.reset ? {} : { ...((cur.verification_detail?.overrides as object) ?? {}) };
+      // Publisher corrections share the overrides object; lib/overrides.ts keeps the two apart.
+      const prev = (cur.verification_detail?.overrides as Overrides | undefined) ?? {};
+      const edits: Record<string, Overrides> = {};
       if (!data.reset) {
-        if (data.title) overrides.title = data.title;
-        if (data.summary) overrides.summary = data.summary;
-        if (data.severity) Object.assign(overrides, { severity: data.severity, severity_reason: data.severity_reason });
+        if (data.title) edits.title = { title: data.title };
+        if (data.summary) edits.summary = { summary: data.summary };
+        if (data.severity) edits.severity = { severity: data.severity, severity_reason: data.severity_reason };
         if (data.categories.length) {
           const known = await tx<{ key: string }[]>`select distinct key from event_types where key = any(${data.categories}::text[]) and enabled`;
           if (known.length !== data.categories.length) throw new Error("Unknown or disabled category.");
-          overrides.categories = data.categories;
+          edits.categories = { categories: data.categories };
         }
         if (data.location) {
           const [g] = await tx<{ id: string; name: string; kind: string; lat: number | null; lon: number | null; country_code: string | null; precision_km: string | null }[]>`
             select id, name, kind, lat, lon, country_code, precision_km from geo_entities where id = ${data.location}`;
           if (!g) throw new Error("Unknown location.");
-          overrides.location = { entity_id: g.id, name: g.name, lat: g.lat, lon: g.lon, precision: g.kind, confidence: 0.9,
-            source: `analyst:gazetteer:${g.id} (±${Number(g.precision_km ?? 0)} km)`, country_code: g.country_code };
+          edits.location = { location: { entity_id: g.id, name: g.name, lat: g.lat, lon: g.lon, precision: g.kind, confidence: 0.9,
+            source: `analyst:gazetteer:${g.id} (±${Number(g.precision_km ?? 0)} km)`, country_code: g.country_code } };
         }
         if (data.killed !== undefined || data.injured !== undefined) {
-          overrides.casualties = [data.killed ?? null, data.injured ?? null];
-          overrides.casualty_note = `Casualty figures set by analyst: ${data.note}`;
+          edits.casualties = { casualties: [data.killed ?? null, data.injured ?? null], casualty_note: `Casualty figures set by analyst: ${data.note}` };
         }
+        if (!Object.keys(edits).length) throw new Error("Nothing to change: fill in at least one field, or tick the box to remove analyst overrides.");
       }
+      const overrides = data.reset ? removeAnalystOverrides(prev) : setAnalystOverrides(prev, edits);
       await tx`update incidents set verification_detail = jsonb_set(coalesce(verification_detail, '{}'), '{overrides}', ${tx.json(overrides as never)})
                where id = ${data.id}`;
       await audit(tx, s, data.reset ? "incident.overrides_reset" : "incident.edit", "incident", data.id, { note: data.note, overrides });

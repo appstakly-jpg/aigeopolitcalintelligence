@@ -107,8 +107,9 @@ def evaluate_incident(conn: psycopg.Connection, inc: dict, change_type: str, cha
                                    and status in ('pending_review', 'approved', 'sent', 'partially_sent')
                                    order by created_at desc limit 1""", (rule["id"], inc["id"]))
         if not rule_matches(rule, inc, gazetteer):
-            # A retraction must still reach anyone who was alerted about the incident.
-            if not (prior and change_type == "retraction"):
+            # Corrections and retractions must still reach anyone who was alerted about the incident,
+            # even when the corrected incident no longer matches their rule (e.g. a corrected location).
+            if not (prior and change_type in ("correction", "retraction")):
                 continue
         if prior is None:
             kind = "new"
