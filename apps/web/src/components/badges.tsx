@@ -50,9 +50,16 @@ export function ReliabilityBadge({ grade, credibility }: { grade: string | null 
   );
 }
 
-export function ReviewBadge({ status }: { status: string }) {
+/** Staff see every review state; clients only see that an incident has not been reviewed yet. */
+export function ReviewBadge({ status, audience = "staff" }: { status: string; audience?: "staff" | "client" }) {
   if (status === "not_required") return null;
-  const cls = status === "pending" || status === "changes_requested"
+  const awaiting = status === "pending" || status === "changes_requested";
+  if (audience === "client") {
+    return awaiting
+      ? <Badge className="border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-300" title="Shown before analyst review; details may change">Awaiting analyst review</Badge>
+      : null;
+  }
+  const cls = awaiting
     ? "border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-300"
     : status === "approved" ? "border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-300"
       : "border-red-300 text-red-700 dark:border-red-700 dark:text-red-300";

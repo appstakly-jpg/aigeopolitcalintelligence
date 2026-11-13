@@ -26,6 +26,7 @@ from .refdata import taxonomy_from_db
 from .reports.render import render_docx, render_pdf
 
 log = get_logger(__name__)
+STALE_RECOVERY_INTERVAL_SECONDS = 300
 Handler = Callable[[psycopg.Connection, dict, Settings], dict]
 HANDLERS: dict[str, Handler] = {}
 
@@ -108,7 +109,7 @@ def _export_report(conn, job, settings):
         raise PermanentJobError("report version not found")
     fmt = p.get("format", "docx")
     meta = {"ref": rep["ref"], "version": v["version"], "status": rep["status"],
-            "generated_at": v["created_at"].isoformat()}
+            "generated_at": v["created_at"].isoformat(), "branding": briefing.report_branding(conn, job["tenant_id"])}
     if fmt == "html":
         data, ctype = v["html"].encode("utf-8"), "text/html; charset=utf-8"
     elif fmt == "docx":
@@ -223,9 +224,14 @@ def run_worker(settings: Settings | None = None, *, once: bool = False, kinds: l
     processed = 0
     conn = connect(settings.database_url, autocommit=True)
     queue.recover_stale(conn)
+    last_recovery = time.monotonic()
     log.info("worker started", extra={"worker_id": settings.worker_id})
     try:
         while not stop["flag"]:
+            if time.monotonic() - last_recovery > STALE_RECOVERY_INTERVAL_SECONDS:
+                # Re-queue jobs left "running" by a worker that died, without waiting for a restart.
+                queue.recover_stale(conn)
+                last_recovery = time.monotonic()
             job = queue.claim(conn, settings.worker_id, kinds)
             if job is None:
                 if once:

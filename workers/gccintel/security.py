@@ -18,8 +18,8 @@ SCRYPT_N, SCRYPT_R, SCRYPT_P, SCRYPT_DKLEN = 16384, 8, 1, 64
 
 
 def hash_password(password: str, salt: bytes | None = None) -> str:
-    if len(password) < 10:
-        raise ValueError("password must be at least 10 characters")
+    if len(password) < 12:  # same minimum as the web app
+        raise ValueError("password must be at least 12 characters")
     salt = salt or os.urandom(16)
     key = hashlib.scrypt(password.encode("utf-8"), salt=salt, n=SCRYPT_N, r=SCRYPT_R, p=SCRYPT_P, dklen=SCRYPT_DKLEN)
     return "$".join(["scrypt", str(SCRYPT_N), str(SCRYPT_R), str(SCRYPT_P),

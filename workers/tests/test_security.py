@@ -168,3 +168,96 @@ def test_reviewers_see_every_alert_but_not_rule_destinations(conn, tenant, setti
     with as_user(conn, other_client, tenant):
         assert fetch_all(conn, "select id from alerts") == []
         assert fetch_one(conn, "select * from app.alert_rule_summary(%s)", (rule["id"],)) is None
+
+
+def test_branded_reports_follow_the_plan_and_sanitise_colours(conn, two_tenants):
+    from gccintel.agents.briefing import report_branding
+    from gccintel.reports.render import render_docx, render_html
+    a, _, _, _ = two_tenants  # plan "team": no branded reports
+    conn.execute("""update tenants set branding = '{"report_header": "Acme Risk Desk", "accent": "#123abc"}' where id = %s""", (a,))
+    assert report_branding(conn, a) is None
+    conn.execute("update tenants set plan_id = 'enterprise' where id = %s", (a,))
+    assert report_branding(conn, a) == {"header": "Acme Risk Desk", "accent": "#123abc"}
+    conn.execute("""update tenants set branding = '{"report_header": "X", "accent": "red;}</style><script>"}' where id = %s""", (a,))
+    assert report_branding(conn, a)["accent"] is None  # never written into CSS unless it is a plain hex colour
+    content = {"title": "T", "is_demo": True, "period": {"start": "2026-11-12T00:00", "end": "2026-11-13T00:00"}, "sections": []}
+    meta = {"ref": "RPT-1", "version": 1, "status": "draft", "generated_at": "2026-11-13T00:00",
+            "branding": {"header": "Acme <b>Risk</b>", "accent": "#123abc"}}
+    html = render_html(content, [], meta)
+    assert "--accent:#123abc" in html and "Acme &lt;b&gt;Risk&lt;/b&gt;" in html
+    assert render_docx(content, [], meta)[:2] == b"PK"
+
+
+def test_redirects_into_private_networks_are_refused(settings):
+    """A public feed URL must not be able to redirect the fetcher to loopback, link-local (cloud
+    metadata) or private addresses; the refused hop is never sent."""
+    import dataclasses
+
+    import httpx
+
+    from gccintel.adapters.http import FetchBlocked, PoliteFetcher
+
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(str(request.url))
+        if request.url.path == "/robots.txt":
+            return httpx.Response(200, text="User-agent: *\nAllow: /\n")
+        if request.url.host == "feeds.example":
+            return httpx.Response(302, headers={"location": "http://169.254.169.254/latest/meta-data/"})
+        return httpx.Response(200, text="secret")
+
+    strict = dataclasses.replace(settings, allow_private_network_fetch=False)
+    f = PoliteFetcher(strict, transport=httpx.MockTransport(handler))
+    try:
+        with pytest.raises(FetchBlocked):
+            f.get("https://feeds.example/feed.xml")
+        with pytest.raises(FetchBlocked):
+            f.get("http://127.0.0.1:8088/feed.xml")
+    finally:
+        f.close()
+    assert "https://feeds.example/feed.xml" in seen
+    assert not any("169.254.169.254" in u or "127.0.0.1" in u for u in seen)
+
+    # Demo mode (local synthetic feeds) can opt in explicitly.
+    relaxed = dataclasses.replace(settings, allow_private_network_fetch=True)
+    f = PoliteFetcher(relaxed, transport=httpx.MockTransport(handler))
+    try:
+        assert f.get("https://feeds.example/feed.xml").status == 200
+    finally:
+        f.close()
+
+
+def test_organisation_monthly_llm_budget_stops_model_calls(conn, tenant, settings):
+    """The monthly budget an admin sets (Administration -> Policies) is enforced before any
+    provider call; 0 turns model use off for the organisation."""
+    import dataclasses
+
+    from gccintel.db import execute
+    from gccintel.llm.base import LLMBudgetExceeded
+    from gccintel.llm.mock_provider import MockProvider
+    from gccintel.llm.service import LLMService
+
+    s = dataclasses.replace(settings, llm_model_default="mock-model", llm_model_extraction="mock-model",
+                            llm_daily_budget_usd=1000.0)
+    provider = MockProvider(lambda kind, system, payload, schema_name: {"ok": True})
+    call = {"agent": "test", "task": "extraction", "system": "s", "user": "u", "schema": {"type": "object"},
+            "schema_name": "t"}
+
+    execute(conn, """update tenants set settings = jsonb_set(settings, '{llm,monthly_budget_usd}', '5')
+                     where id = %s""", (tenant,))
+    LLMService(conn, tenant, provider, s).json(**call)
+    assert len(provider.calls) == 1
+
+    execute(conn, """insert into llm_usage(tenant_id, agent, provider, model, cost_usd, success)
+                     values (%s, 'test', 'mock', 'mock-model', 5, true)""", (tenant,))
+    with pytest.raises(LLMBudgetExceeded, match="monthly"):
+        LLMService(conn, tenant, provider, s).json(**call)
+    assert len(provider.calls) == 1  # refused before reaching the provider
+
+    execute(conn, """update tenants set settings = jsonb_set(settings, '{llm,monthly_budget_usd}', '0')
+                     where id = %s""", (tenant,))
+    execute(conn, "delete from llm_usage where tenant_id = %s", (tenant,))
+    with pytest.raises(LLMBudgetExceeded, match="monthly"):
+        LLMService(conn, tenant, provider, s).json(**call)
+    assert len(provider.calls) == 1

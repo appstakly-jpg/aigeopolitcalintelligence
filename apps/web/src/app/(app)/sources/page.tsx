@@ -109,6 +109,9 @@ export default async function SourcesPage() {
                       <Label>Interval (min)<Input name="fetch_interval_minutes" type="number" min={5} max={1440} defaultValue={x.fetch_interval_minutes} /></Label>
                     </div>
                     <Label>Rationale<Input name="reliability_rationale" defaultValue={x.reliability_rationale ?? ""} required minLength={5} /></Label>
+                    <Label hint="Outlets of one newsroom or network share a group and count once for corroboration; applies to newly fetched articles">Origin group
+                      <Input name="origin_group" defaultValue={x.origin_group ?? ""} pattern="[a-z0-9][a-z0-9_.\-]{1,60}" placeholder="own (blank)" maxLength={61} />
+                    </Label>
                     <div className="grid grid-cols-2 gap-1.5">
                       <Label>Usage<Select name="usage_policy" defaultValue={x.usage_policy}>{["metadata_only", "headline_link_excerpt", "full_text"].map((u) => <option key={u} value={u}>{humanize(u)}</option>)}</Select></Label>
                       <Label>Excerpt chars<Input name="max_excerpt_chars" type="number" min={0} max={2000} defaultValue={x.max_excerpt_chars} /></Label>

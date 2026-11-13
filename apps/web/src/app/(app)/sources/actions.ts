@@ -54,13 +54,15 @@ export async function updateSourceAction(_p: State, form: FormData): Promise<Sta
       usage_policy: z.enum(["metadata_only", "headline_link_excerpt", "full_text"]),
       license_type: z.enum(["public_domain", "open_license", "attribution", "licensed", "review_required", "prohibited", "synthetic"]),
       license_notes: z.string().trim().max(1000).optional(),
-    }).parse(Object.fromEntries(["id", "reliability", "reliability_rationale", "fetch_interval_minutes", "max_excerpt_chars", "usage_policy", "license_type", "license_notes"]
+      // Outlets of one newsroom or network share an origin group so they count once for corroboration.
+      origin_group: z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9_.-]{1,60}$/, "Origin group: lower-case letters, digits, '.', '_' or '-'").optional(),
+    }).parse(Object.fromEntries(["id", "reliability", "reliability_rationale", "fetch_interval_minutes", "max_excerpt_chars", "usage_policy", "license_type", "license_notes", "origin_group"]
       .map((k) => [k, form.get(k) || undefined])));
     await withRls(s, async (tx) => {
       const r = await tx`
         update sources set reliability = ${d.reliability}, reliability_rationale = ${d.reliability_rationale},
                fetch_interval_minutes = ${d.fetch_interval_minutes}, max_excerpt_chars = ${d.max_excerpt_chars}, usage_policy = ${d.usage_policy},
-               license_type = ${d.license_type}, license_notes = ${d.license_notes ?? null}, updated_at = now()
+               license_type = ${d.license_type}, license_notes = ${d.license_notes ?? null}, origin_group = ${d.origin_group ?? null}, updated_at = now()
         where id = ${d.id} returning id`;
       if (!r.length) throw new Error("Source not found");
       await audit(tx, s, "source.update", "source", d.id, { ...d });

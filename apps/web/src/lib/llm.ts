@@ -32,6 +32,17 @@ export async function spentToday(tenantId: string): Promise<number> {
   return Number(row?.spent ?? 0);
 }
 
+/** The organisation's monthly LLM budget (Administration -> Policies; 0 turns model use off) and this month's spend. */
+export async function monthlyBudget(tenantId: string): Promise<{ budget: number | null; spent: number }> {
+  const [row] = await sql()<{ budget: string | null; spent: string }[]>`
+    select t.settings->'llm'->>'monthly_budget_usd' as budget,
+           (select coalesce(sum(u.cost_usd), 0)::text from llm_usage u
+             where u.tenant_id = t.id and u.created_at >= date_trunc('month', now())) as spent
+    from tenants t where t.id = ${tenantId}`;
+  const budget = row?.budget == null || row.budget === "" ? NaN : Number(row.budget);
+  return { budget: Number.isFinite(budget) && budget >= 0 ? budget : null, spent: Number(row?.spent ?? 0) };
+}
+
 async function recordUsage(tenantId: string, agent: string, model: string, o: Partial<{ input: number; output: number; cacheRead: number;
   cacheWrite: number; cost: number; latency: number; success: boolean; error: string | null; requestId: string | null }>) {
   await sql()`
@@ -55,6 +66,10 @@ export async function complete(opts: {
   const spent = await spentToday(opts.tenantId);
   if (spent >= env.llmDailyBudgetUsd) {
     return { ok: false, reason: "budget", message: `Daily LLM budget reached ($${spent.toFixed(2)} of $${env.llmDailyBudgetUsd.toFixed(2)}).` };
+  }
+  const month = await monthlyBudget(opts.tenantId);
+  if (month.budget !== null && month.spent >= month.budget) {
+    return { ok: false, reason: "budget", message: `This organisation's monthly LLM budget is used up ($${month.spent.toFixed(2)} of $${month.budget.toFixed(2)}).` };
   }
   const client = new Anthropic({ apiKey: env.anthropicApiKey, baseURL: env.anthropicBaseUrl, maxRetries: 2, timeout: 90_000 });
   const started = Date.now();

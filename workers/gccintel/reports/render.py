@@ -43,6 +43,12 @@ def render_docx(content: dict, citations: list[dict], meta: dict) -> bytes:
         r = p.add_run("SYNTHETIC DEMO DATA - these events are fabricated test fixtures, not real news.")
         r.bold = True
         r.font.color.rgb = RGBColor(0x9A, 0x34, 0x12)
+    brand = meta.get("branding") or {}
+    if brand.get("header"):
+        r = doc.add_paragraph().add_run(brand["header"])
+        r.bold = True
+        if brand.get("accent"):
+            r.font.color.rgb = RGBColor.from_string(brand["accent"].lstrip("#").upper())
     doc.add_paragraph(f"Unclassified - public-source intelligence | {meta['ref']} v{meta['version']} | {meta['status'].upper()}")
     doc.add_heading(content["title"], level=0)
     doc.add_paragraph(f"Period: {content['period']['start'][:16].replace('T', ' ')} to "

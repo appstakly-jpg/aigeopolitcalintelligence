@@ -383,6 +383,22 @@ def llm_narrative(content: dict, citations: list[dict], llm: LLMService) -> tupl
     return True, f"llm:{result.model}"
 
 
+_HEX_COLOUR = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+
+def report_branding(conn: psycopg.Connection, tenant_id: str) -> dict | None:
+    """Organisation branding for reports, only when the plan includes it. The accent colour is
+    re-validated here because it is written into the report's CSS."""
+    row = fetch_one(conn, """select t.branding, coalesce((p.features ->> 'branded_reports')::boolean, false) as allowed
+                             from tenants t left join plans p on p.id = t.plan_id where t.id = %s""", (tenant_id,))
+    if not row or not row["allowed"]:
+        return None
+    b = row["branding"] or {}
+    header = str(b.get("report_header") or "").strip()[:80]
+    accent = str(b.get("accent") or "")
+    return {"header": header or None, "accent": accent if _HEX_COLOUR.match(accent) else None}
+
+
 def generate_report(conn: psycopg.Connection, tenant_id: str, report_type: str, taxonomy: Taxonomy, *,
                     period_end: datetime | None = None, period_start: datetime | None = None,
                     country: str | None = None, llm: LLMService | None = None, created_by: str | None = None,
@@ -412,7 +428,8 @@ def generate_report(conn: psycopg.Connection, tenant_id: str, report_type: str, 
                         (tenant_id, f"RPT-{n:06d}", report_type, content["title"], country, start, end,
                          content["is_demo"], created_by))
     version = rep["current_version"] + 1
-    meta = {"ref": rep["ref"], "version": version, "status": "draft", "generated_at": datetime.now(UTC).isoformat()}
+    meta = {"ref": rep["ref"], "version": version, "status": "draft", "generated_at": datetime.now(UTC).isoformat(),
+            "branding": report_branding(conn, tenant_id)}
     html = render_html(content, citations, meta, check)
     execute_sql = """
         insert into report_versions(tenant_id, report_id, version, content, html, citations, citation_check, coverage,

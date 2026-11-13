@@ -4,7 +4,9 @@
 * Per-host minimum interval between requests
 * Conditional GET (ETag / Last-Modified)
 * Response size cap, redirect cap, timeouts
-* SSRF guard: private/loopback hosts are refused unless ALLOW_PRIVATE_NETWORK_FETCH=true
+* SSRF guard: every request, including each redirect hop and robots.txt, is refused when its host
+  resolves to a private/loopback/link-local/reserved address, unless ALLOW_PRIVATE_NETWORK_FETCH=true
+  (the check resolves DNS before connecting; pair it with egress firewall rules in production)
 Never used to bypass paywalls, logins or rate limits: 401/402/403/429 are reported as-is.
 """
 
@@ -56,6 +58,7 @@ class PoliteFetcher:
             follow_redirects=True,
             max_redirects=5,
             transport=transport,
+            event_hooks={"request": [self._guard_request]},
         )
         self._robots: dict[str, tuple[urllib.robotparser.RobotFileParser | None, bool, float]] = {}
         self._last_hit: dict[str, float] = {}
@@ -63,6 +66,12 @@ class PoliteFetcher:
 
     def close(self) -> None:
         self.client.close()
+
+    def _guard_request(self, request: httpx.Request) -> None:
+        """httpx runs this before every request it sends, including each redirect hop, so a public
+        URL cannot redirect the fetcher into a private network."""
+        if not self.settings.allow_private_network_fetch and is_private_host(str(request.url)):
+            raise FetchBlocked(f"private/loopback network address refused ({request.url.host})")
 
     # -- robots.txt -------------------------------------------------------
     def _robots_for(self, url: str) -> tuple[urllib.robotparser.RobotFileParser | None, bool]:

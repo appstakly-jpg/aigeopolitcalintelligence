@@ -1,14 +1,14 @@
 import { checkAnswer, type CheckResult } from "./citations";
 import type { Tx } from "./db";
 import { complete } from "./llm";
-import { evidenceBlock, retrieve, type Evidence } from "./retrieval";
+import { describeFilters, evidenceBlock, retrieve, type Evidence, type RetrievalFilters } from "./retrieval";
 
 export interface ChatAnswer {
   content: string;
   citations: { n: number; kind: string; id: string; ref: string | null; title: string; url: string | null; incidentId: string | null; isDemo: boolean }[];
   generator: string;
   check: CheckResult & { note?: string };
-  retrieval: { count: number; from: string; to: string };
+  retrieval: { count: number; from: string; to: string; filters: string | null };
 }
 
 // Requests aimed at individuals (locating, profiling or tracking a person) are declined:
@@ -39,18 +39,20 @@ function extractive(items: Evidence[], header: string): string {
 }
 
 /** Step 1 (inside the caller's RLS transaction): policy check and retrieval. */
-export async function gatherEvidence(tx: Tx, question: string, from: Date, to: Date): Promise<{ items: Evidence[]; early: ChatAnswer | null }> {
-  const retrieval = { count: 0, from: from.toISOString(), to: to.toISOString() };
+export async function gatherEvidence(tx: Tx, question: string, from: Date, to: Date, filters?: RetrievalFilters): Promise<{ items: Evidence[]; early: ChatAnswer | null }> {
+  const retrieval = { count: 0, from: from.toISOString(), to: to.toISOString(), filters: describeFilters(filters) };
   if (isPersonalTargeting(question)) {
     return { items: [], early: {
       content: "I can't help with locating, profiling or tracking individual people. I can summarise reported incidents, official statements and their sources for a country, place or sector.",
       citations: [], generator: "policy", check: { ok: true, cited: [], errors: [], warnings: [], note: "declined: individual targeting" }, retrieval,
     } };
   }
-  const items = await retrieve(tx, question, { from, to });
+  const items = await retrieve(tx, question, { from, to, filters });
   if (!items.length) {
     return { items, early: {
-      content: "No stored evidence in the selected date range matches this question, so I can't answer it from the record. Try a wider date range, other place names, or check whether sources covering it are enabled.",
+      content: retrieval.filters
+        ? `No stored evidence in the selected date range matches this question with the evidence filters (${retrieval.filters}), so I can't answer it from the record. Try removing a filter or widening the date range.`
+        : "No stored evidence in the selected date range matches this question, so I can't answer it from the record. Try a wider date range, other place names, or check whether sources covering it are enabled.",
       citations: [], generator: "none", check: { ok: true, cited: [], errors: [], warnings: [] }, retrieval,
     } };
   }
@@ -58,11 +60,12 @@ export async function gatherEvidence(tx: Tx, question: string, from: Date, to: D
 }
 
 /** Step 2 (outside any transaction): grounded generation, citation check, and extractive fallback. */
-export async function composeAnswer(opts: { tenantId: string; question: string; items: Evidence[]; from: Date; to: Date }): Promise<ChatAnswer> {
+export async function composeAnswer(opts: { tenantId: string; question: string; items: Evidence[]; from: Date; to: Date; filters?: RetrievalFilters }): Promise<ChatAnswer> {
   const { items } = opts;
-  const retrieval = { count: items.length, from: opts.from.toISOString(), to: opts.to.toISOString() };
+  const retrieval = { count: items.length, from: opts.from.toISOString(), to: opts.to.toISOString(), filters: describeFilters(opts.filters) };
   const citations = items.map((e) => ({ n: e.n, kind: e.kind, id: e.id, ref: e.ref, title: e.title, url: e.url, incidentId: e.incidentId, isDemo: e.isDemo }));
-  const prompt = `Question: ${opts.question}\n\nDate range: ${retrieval.from} to ${retrieval.to}\n\nEvidence:\n\n${evidenceBlock(items)}`;
+  const scope = retrieval.filters ? `\n\nEvidence filters chosen by the user (mention them as a coverage limit): ${retrieval.filters}` : "";
+  const prompt = `Question: ${opts.question}\n\nDate range: ${retrieval.from} to ${retrieval.to}${scope}\n\nEvidence:\n\n${evidenceBlock(items)}`;
   const out = await complete({ tenantId: opts.tenantId, agent: "analyst_chat", system: SYSTEM, prompt, maxTokens: 1500, effort: "medium" });
   if (!out.ok) {
     const why = out.reason === "not_configured" ? "No language model is configured, so here are the most relevant stored records:"

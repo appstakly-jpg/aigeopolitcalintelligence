@@ -57,7 +57,7 @@ def cmd_tenant_create(args, settings):
     with connect(settings.database_url) as conn:
         tid = create_tenant(conn, args.slug, args.name, args.plan)
         if args.admin_email:
-            pw = os.environ.get("ADMIN_PASSWORD") or getpass.getpass("Admin password (min 10 chars): ")
+            pw = os.environ.get("ADMIN_PASSWORD") or getpass.getpass("Admin password (min 12 chars): ")
             uid = create_user(conn, args.admin_email, pw, args.admin_name or args.admin_email)
             add_member(conn, tid, uid, "admin")
         n = add_catalog_sources(conn, tid, approve=False)
@@ -70,7 +70,7 @@ def cmd_user_create(args, settings):
     from .seed import add_member, create_user  # noqa: PLC0415
     with connect(settings.database_url) as conn:
         tid = _tenant_id(conn, args.tenant)
-        pw = os.environ.get("USER_PASSWORD") or getpass.getpass("Password (min 10 chars): ")
+        pw = os.environ.get("USER_PASSWORD") or getpass.getpass("Password (min 12 chars): ")
         uid = create_user(conn, args.email, pw, args.name or args.email)
         add_member(conn, tid, uid, args.role)
         conn.commit()

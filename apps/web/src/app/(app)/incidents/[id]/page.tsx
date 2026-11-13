@@ -88,10 +88,10 @@ export default async function IncidentPage({ params }: { params: Promise<{ id: s
         actions={<div className="flex flex-wrap items-center gap-1.5">
           <VerificationBadge status={inc.verification_status} />
           <SeverityBadge value={inc.severity} />
-          <Badge title="Admiralty information credibility: 1 confirmed, 2 probably true, 3 possibly true, 4 doubtful, 5 improbable, 6 cannot be judged">
+          <Badge title="Derived from the verification status: 1 confirmed, 2 corroborated, 3 single source graded A or B, 4 single source graded C, 5 disputed, 6 unverified">
             Credibility {inc.credibility ?? "?"}
           </Badge>
-          {staff ? <ReviewBadge status={inc.review_status} /> : null}
+          <ReviewBadge status={inc.review_status} audience={staff ? "staff" : "client"} />
           {inc.status !== "active" ? <StatusBadge status={inc.status} /> : null}
           <Badge title="Analytic confidence in the incident record">Confidence: {inc.confidence}</Badge>
         </div>} />

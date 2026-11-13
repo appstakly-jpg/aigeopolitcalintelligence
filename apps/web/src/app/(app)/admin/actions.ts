@@ -160,3 +160,23 @@ export async function testPlanChangeAction(_p: State, form: FormData): Promise<S
     return { error: msg(e) };
   }
 }
+
+export async function saveBrandingAction(_p: State, form: FormData): Promise<State> {
+  try {
+    const s = await actionSession(["admin"]);
+    const d = z.object({
+      report_header: z.string().trim().min(2).max(80),
+      accent: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Accent colour: a hex value such as #0d5c63"),
+    }).parse({ report_header: form.get("report_header"), accent: form.get("accent") });
+    await withRls(s, async (tx) => {
+      const [p] = await tx<{ features: { branded_reports?: boolean } }[]>`select p.features from plans p join tenants t on t.plan_id = p.id where t.id = ${s.tenantId}`;
+      if (!p?.features?.branded_reports) throw new Error("Branded reports are not included in your plan.");
+      await tx`update tenants set branding = branding || ${tx.json(d)}, updated_at = now() where id = ${s.tenantId}`;
+      await audit(tx, s, "tenant.branding", "tenant", s.tenantId, d);
+    });
+    revalidatePath("/admin");
+    return { ok: "Branding saved. It applies to report versions generated from now on." };
+  } catch (e) {
+    return { error: msg(e) };
+  }
+}

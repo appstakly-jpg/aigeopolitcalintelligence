@@ -36,6 +36,14 @@ def build_provider(settings: Settings) -> LLMProvider | None:
     raise LLMUnavailable(f"unknown LLM_PROVIDER {name!r}")
 
 
+def _as_budget(value: object) -> float | None:
+    try:
+        budget = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    return budget if budget >= 0 else None
+
+
 class LLMService:
     """One instance per pipeline run and tenant."""
 
@@ -72,6 +80,17 @@ class LLMService:
         spent = float(row["spent"]) if row else 0.0
         if spent >= self.settings.llm_daily_budget_usd:
             raise LLMBudgetExceeded(f"daily LLM budget reached (${spent:.2f} >= ${self.settings.llm_daily_budget_usd:.2f})")
+        if self.tenant_id:
+            # The organisation's own monthly budget (Administration -> Policies); 0 turns model use off.
+            month = fetch_one(self.conn, """
+                select t.settings->'llm'->>'monthly_budget_usd' as budget,
+                       (select coalesce(sum(u.cost_usd), 0) from llm_usage u
+                         where u.tenant_id = t.id and u.created_at >= date_trunc('month', now())) as spent
+                from tenants t where t.id = %s""", (self.tenant_id,))
+            budget = _as_budget(month["budget"]) if month else None
+            if month and budget is not None and float(month["spent"]) >= budget:
+                raise LLMBudgetExceeded(f"monthly LLM budget for this organisation reached "
+                                        f"(${float(month['spent']):.2f} >= ${budget:.2f})")
 
     def _record(self, agent: str, model: str, result: LLMResult | None, error: str | None) -> None:
         cost, known = (0.0, False)

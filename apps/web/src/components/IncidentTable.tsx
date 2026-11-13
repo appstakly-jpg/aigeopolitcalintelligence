@@ -29,7 +29,7 @@ export function IncidentTable({ rows, labels, tz, locale, showReview = false }:
               <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
                 <span>{r.ref} · v{r.version}</span>
                 <DemoTag show={r.is_demo} />
-                {showReview ? <ReviewBadge status={r.review_status} /> : null}
+                <ReviewBadge status={r.review_status} audience={showReview ? "staff" : "client"} />
                 {r.casualties_killed !== null || r.casualties_injured !== null ? <span>· {casualtyText(r.casualties_killed, r.casualties_injured)}</span> : null}
               </div>
             </Td>

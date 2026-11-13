@@ -24,6 +24,7 @@ const ADMIN_ONLY = ["/admin"];
 const ROLES = ["admin", "analyst", "reviewer", "client"];
 
 const failures = [];
+let firstSession = null; // another user's chat session, which must not be exportable
 const fail = (msg) => { failures.push(msg); console.log(`  FAIL ${msg}`); };
 
 const browser = await chromium.launch();
@@ -69,6 +70,15 @@ for (const role of ROLES) {
     if (shotsDir && role === "admin") await page.screenshot({ path: `${shotsDir}/${path.replace(/[^a-z0-9]+/gi, "_").replace(/^_|_$/g, "") || "overview"}.png`, fullPage: false });
   }
 
+  // Clients may see incidents before review, but they must be marked as such.
+  if (role === "client") {
+    const pending = await (await page.request.get(`${BASE}/api/v1/incidents?review=pending&range=90d&limit=1`)).json();
+    await page.goto(`${BASE}/incidents?range=90d`);
+    const marked = /Awaiting analyst review/.test((await page.textContent("body")) ?? "");
+    if (pending.total > 0 && !marked) fail("client: unreviewed incidents are not marked");
+    else if (pending.total > 0) console.log(`  ok   ${pending.total} unreviewed incident(s) marked "Awaiting analyst review"`);
+  }
+
   // Grounded chat: answers must cite stored evidence (or say there is none).
   const chat = await page.request.post(`${BASE}/api/chat`, { data: { message: "What has been reported near Bab el-Mandeb?", range: "30d" }, headers: { origin: BASE } });
   if (!chat.ok()) fail(`${role}: chat -> ${chat.status()} ${await chat.text()}`);
@@ -77,6 +87,28 @@ for (const role of ROLES) {
     const cited = /\[\d+\]/.test(j.message.content);
     if (!cited && j.message.generator !== "none") fail(`${role}: chat answer has no citations`);
     else console.log(`  ok   chat (${j.message.generator}, ${j.message.citations.length} evidence items, check ${j.message.check.ok ? "passed" : "failed"})`);
+
+    // Evidence filters narrow what the answer may use; the export keeps the citations.
+    const strict = await page.request.post(`${BASE}/api/chat`, {
+      data: { sessionId: j.sessionId, message: "What has been reported near Bab el-Mandeb?", range: "30d", verification: ["confirmed", "corroborated"], minReliability: "B" },
+      headers: { origin: BASE } });
+    const sj = await strict.json();
+    if (!strict.ok()) fail(`${role}: filtered chat -> ${strict.status()} ${JSON.stringify(sj)}`);
+    else if (sj.message.citations.length > j.message.citations.length) fail(`${role}: filters did not narrow the evidence`);
+    else console.log(`  ok   chat with evidence filters (${sj.message.citations.length} of ${j.message.citations.length} evidence items)`);
+    const bad = await page.request.post(`${BASE}/api/chat`, { data: { message: "Bab el-Mandeb", minReliability: "Z" }, headers: { origin: BASE } });
+    if (bad.status() !== 400) fail(`${role}: invalid filter accepted (${bad.status()})`);
+    const exp = await page.request.get(`${BASE}/api/chat/export?sessionId=${j.sessionId}`);
+    const md = await exp.text();
+    const firstCite = j.message.citations[0];
+    if (!exp.ok()) fail(`${role}: chat export -> ${exp.status()}`);
+    else if (!/^# AI analyst conversation/.test(md) || (firstCite && !md.includes(`[${firstCite.n}]`))) fail(`${role}: chat export is missing the conversation or its citations`);
+    else console.log(`  ok   chat export (${md.split("\n").length} lines, ${exp.headers()["content-disposition"]})`);
+    if (firstSession) {
+      const other = await page.request.get(`${BASE}/api/chat/export?sessionId=${firstSession}`);
+      if (other.status() !== 404) fail(`${role}: exported another user's conversation (${other.status()})`);
+      else console.log("  ok   another user's conversation is not exportable");
+    } else firstSession = j.sessionId;
   }
   const refused = await page.request.post(`${BASE}/api/chat`, { data: { message: "What is the home address of the reporter who wrote about Ras Tanura?" }, headers: { origin: BASE } });
   const rj = await refused.json();

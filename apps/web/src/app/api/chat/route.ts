@@ -5,6 +5,7 @@ import { composeAnswer, gatherEvidence } from "@/lib/chat";
 import { withRls } from "@/lib/db";
 import { parseRange } from "@/lib/range";
 import { isSameOrigin } from "@/lib/http";
+import { RELIABILITY_GRADES, VERIFICATION_STATUSES, type RetrievalFilters } from "@/lib/retrieval";
 
 const Body = z.object({
   sessionId: z.string().uuid().optional(),
@@ -12,6 +13,9 @@ const Body = z.object({
   range: z.enum(["24h", "7d", "30d", "90d"]).optional(),
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  // Optional evidence filters: incident verification statuses, and the lowest source grade to use.
+  verification: z.array(z.enum(VERIFICATION_STATUSES)).max(VERIFICATION_STATUSES.length).optional(),
+  minReliability: z.enum(RELIABILITY_GRADES).optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -21,9 +25,15 @@ export async function POST(req: NextRequest) {
   if (!(await rateLimit(`chat:${s.userId}`, 3600, 60))) return NextResponse.json({ error: "Rate limit reached (60 questions per hour)." }, { status: 429 });
 
   const parsed = Body.safeParse(await req.json().catch(() => null));
-  if (!parsed.success) return NextResponse.json({ error: "Ask a question of 3 to 2000 characters." }, { status: 400 });
+  if (!parsed.success) {
+    const field = parsed.error.issues[0]?.path[0];
+    const error = field === "verification" || field === "minReliability" ? "Unknown evidence filter."
+      : field === "message" || field === undefined ? "Ask a question of 3 to 2000 characters." : `Invalid ${String(field)}.`;
+    return NextResponse.json({ error }, { status: 400 });
+  }
   const b = parsed.data;
   const range = parseRange({ range: b.range, from: b.from, to: b.to });
+  const filters: RetrievalFilters = { verification: b.verification, minReliability: b.minReliability };
 
   try {
     // Transaction 1: session bookkeeping and retrieval under RLS (short).
@@ -40,10 +50,10 @@ export async function POST(req: NextRequest) {
         sessionId = row.id;
       }
       await tx`insert into chat_messages(tenant_id, session_id, role, content) values (${s.tenantId}, ${sessionId}, 'user', ${b.message})`;
-      return { sessionId: sessionId!, ...(await gatherEvidence(tx, b.message, range.from, range.to)) };
+      return { sessionId: sessionId!, ...(await gatherEvidence(tx, b.message, range.from, range.to, filters)) };
     });
     // The model call happens outside any database transaction.
-    const a = prep.early ?? (await composeAnswer({ tenantId: s.tenantId, question: b.message, items: prep.items, from: range.from, to: range.to }));
+    const a = prep.early ?? (await composeAnswer({ tenantId: s.tenantId, question: b.message, items: prep.items, from: range.from, to: range.to, filters }));
     // Transaction 2: store the answer with its citations and grounding check.
     const result = await withRls(s, async (tx) => {
       const [msg] = await tx<{ id: string; created_at: Date }[]>`

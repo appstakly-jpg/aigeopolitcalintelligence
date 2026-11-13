@@ -3,7 +3,15 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useRef, useState, type ReactNode } from "react";
-import { Badge, Button, Notice, Textarea } from "@/components/ui/primitives";
+import { Badge, Button, Label, Notice, Select, Textarea } from "@/components/ui/primitives";
+
+// Evidence filters offered to the user; the server validates the values again.
+const VERIFICATION_FILTERS: Record<string, { label: string; statuses?: string[] }> = {
+  all: { label: "Any verification status" },
+  strong: { label: "Corroborated or confirmed only", statuses: ["confirmed", "corroborated"] },
+  no_weak: { label: "Exclude disputed and unverified", statuses: ["confirmed", "corroborated", "single_source"] },
+};
+const GRADE_FILTERS: Record<string, string> = { F: "Any source grade", C: "Sources graded A–C", B: "Sources graded A–B" };
 
 export interface ChatCitation { n: number; kind: string; id: string; ref: string | null; title: string; url: string | null; incidentId: string | null; isDemo: boolean }
 export interface ChatMessage {
@@ -60,6 +68,8 @@ export function ChatPanel({ sessionId, initial }: { sessionId: string | null; in
   const [sid, setSid] = useState<string | null>(sessionId);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [verification, setVerification] = useState("all");
+  const [grade, setGrade] = useState("F");
   const formRef = useRef<HTMLFormElement>(null);
   const sp = useSearchParams();
   const router = useRouter();
@@ -73,7 +83,10 @@ export function ChatPanel({ sessionId, initial }: { sessionId: string | null; in
     try {
       const res = await fetch("/api/chat", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: sid ?? undefined, message, range: sp.get("range") ?? undefined, from: sp.get("from") ?? undefined, to: sp.get("to") ?? undefined }),
+        body: JSON.stringify({
+          sessionId: sid ?? undefined, message, range: sp.get("range") ?? undefined, from: sp.get("from") ?? undefined, to: sp.get("to") ?? undefined,
+          verification: VERIFICATION_FILTERS[verification]?.statuses, minReliability: grade === "F" ? undefined : grade,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`);
@@ -106,6 +119,19 @@ export function ChatPanel({ sessionId, initial }: { sessionId: string | null; in
         {pending ? <div className="rounded-lg border bg-card p-3 text-sm text-muted-foreground">Searching stored evidence…</div> : null}
       </div>
       {error ? <Notice tone="error">{error}</Notice> : null}
+      <div className="flex flex-wrap items-end gap-2">
+        <Label>Incidents
+          <Select value={verification} onChange={(e) => setVerification(e.target.value)} disabled={pending}>
+            {Object.entries(VERIFICATION_FILTERS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          </Select>
+        </Label>
+        <Label>Source articles
+          <Select value={grade} onChange={(e) => setGrade(e.target.value)} disabled={pending}>
+            {Object.entries(GRADE_FILTERS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </Select>
+        </Label>
+        {sid ? <a href={`/api/chat/export?sessionId=${encodeURIComponent(sid)}`} className="ms-auto text-xs text-primary hover:underline">Export conversation (Markdown)</a> : null}
+      </div>
       <form ref={formRef} action={send} className="grid gap-2">
         <Textarea name="message" required minLength={3} maxLength={2000} placeholder="Ask about the GCC security picture…" disabled={pending}
           onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) e.currentTarget.form?.requestSubmit(); }} />

@@ -5,12 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ content.title }}</title>
 <style>
-  :root { --ink:#16202a; --muted:#5b6672; --line:#d9dee3; --accent:#0d5c63; --warn:#9a3412; --bg:#ffffff; }
+  :root { --ink:#16202a; --muted:#5b6672; --line:#d9dee3; --accent:{{ (meta.branding.accent if meta.branding and meta.branding.accent else '#0d5c63') }}; --warn:#9a3412; --bg:#ffffff; }
   * { box-sizing: border-box; }
   body { font-family: "Inter", "Noto Sans Arabic", system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink);
          background: var(--bg); margin: 0; line-height: 1.5; font-size: 14px; }
   main { max-width: 860px; margin: 0 auto; padding: 32px 24px 64px; }
   header.doc { border-bottom: 3px solid var(--accent); padding-bottom: 12px; margin-bottom: 24px; }
+  header.doc .brand { color: var(--accent); font-weight: 700; font-size: 15px; margin-bottom: 4px; }
   .eyebrow { text-transform: uppercase; letter-spacing: .08em; font-size: 11px; color: var(--muted); }
   h1 { font-size: 24px; margin: 4px 0 6px; }
   h2 { font-size: 16px; margin: 28px 0 8px; padding-bottom: 4px; border-bottom: 1px solid var(--line); }
@@ -38,6 +39,7 @@
   <div class="banner">SYNTHETIC DEMO DATA - these events are fabricated test fixtures, not real news.</div>
   {% endif %}
   <header class="doc">
+    {% if meta.branding and meta.branding.header %}<div class="brand">{{ meta.branding.header }}</div>{% endif %}
     <div class="eyebrow">Unclassified - public-source intelligence | {{ meta.ref }} v{{ meta.version }} | {{ meta.status|upper }}</div>
     <h1>{{ content.title }}</h1>
     <div class="meta">Period: {{ content.period.start[:16]|replace('T', ' ') }} to {{ content.period.end[:16]|replace('T', ' ') }} UTC

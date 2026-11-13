@@ -6,7 +6,7 @@ import { withRls } from "@/lib/db";
 import { getEnv } from "@/lib/env";
 import { fmtAgo, fmtDateTime, fmtNumber, fmtUsd, humanize } from "@/lib/format";
 import { t } from "@/lib/i18n";
-import { addMemberAction, memberRoleAction, saveEventTypeAction, savePoliciesAction, testPlanChangeAction } from "./actions";
+import { addMemberAction, memberRoleAction, saveBrandingAction, saveEventTypeAction, savePoliciesAction, testPlanChangeAction } from "./actions";
 
 export const metadata = { title: "Administration" };
 
@@ -114,6 +114,20 @@ export default async function AdminPage() {
         </Card>
 
         <Card>
+          <CardHeader title="Report branding" description="Organisation name and accent colour on generated reports (HTML, PDF, DOCX). Included in plans with branded reports." />
+          <CardBody>
+            {plan?.features?.branded_reports ? (
+              <ActionForm action={saveBrandingAction} submit="Save branding">
+                <div className="grid grid-cols-[1fr_140px] gap-2">
+                  <Label>Report header<Input name="report_header" maxLength={80} required defaultValue={String(d.tenant.branding?.report_header ?? d.tenant.name)} /></Label>
+                  <Label>Accent colour<Input name="accent" type="color" defaultValue={String(d.tenant.branding?.accent ?? "#0d5c63")} /></Label>
+                </div>
+              </ActionForm>
+            ) : <Notice tone="info">Your plan uses the standard report design. Branded reports come with the Enterprise plan.</Notice>}
+          </CardBody>
+        </Card>
+
+        <Card>
           <CardHeader title="Review and verification policy" description="Controls which incidents and alerts need a human decision. Lowering these thresholds is recorded in the audit log." />
           <CardBody>
             <ActionForm action={savePoliciesAction} submit="Save policies">
@@ -124,7 +138,7 @@ export default async function AdminPage() {
                 <Label hint="Single-source, unverified or disputed incidents">…weakly sourced from severity<Input name="incident_unverified_min_severity" type="number" min={1} max={5} defaultValue={Number(rp.incident_unverified_min_severity ?? 3)} /></Label>
                 <Label>High-impact alerts from severity<Input name="alert_high_impact_min_severity" type="number" min={1} max={5} defaultValue={Number(rp.alert_high_impact_min_severity ?? 4)} /></Label>
                 <Label>Independent origins to corroborate<Input name="corroboration_min_independent" type="number" min={2} max={5} defaultValue={Number(vp.corroboration_min_independent ?? 2)} /></Label>
-                <Label>LLM monthly budget (USD)<Input name="monthly_budget_usd" type="number" min={0} step="1" defaultValue={Number(d.tenant.settings.llm?.monthly_budget_usd ?? 25)} /></Label>
+                <Label hint="Model calls stop for the rest of the month once spend reaches it; 0 turns model use off">LLM monthly budget (USD)<Input name="monthly_budget_usd" type="number" min={0} step="1" defaultValue={Number(d.tenant.settings.llm?.monthly_budget_usd ?? 25)} /></Label>
               </div>
               <label className="flex items-center gap-2 text-xs"><input type="checkbox" name="high_impact_requires_review" defaultChecked={rp.high_impact_requires_review !== false} /> High-impact alerts require human review before sending (recommended)</label>
               <label className="flex items-center gap-2 text-xs"><input type="checkbox" name="auto_send_standard_alerts" defaultChecked={rp.auto_send_standard_alerts !== false} /> Send standard-impact alerts automatically</label>

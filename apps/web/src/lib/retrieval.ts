@@ -2,7 +2,25 @@ import type { Tx } from "./db";
 import { COUNTRY_NAMES } from "./i18n";
 
 // Retrieval over stored, tenant-scoped evidence (runs inside withRls, so tenant isolation and role
-// visibility are enforced by Postgres). Lexical full-text search; see docs/ROADMAP.md for pgvector.
+// visibility are enforced by Postgres). Lexical full-text search; see docs/roadmap.md for pgvector.
+
+export const VERIFICATION_STATUSES = ["confirmed", "corroborated", "single_source", "disputed", "unverified"] as const;
+export const RELIABILITY_GRADES = ["A", "B", "C", "D", "E", "F"] as const;
+
+/** Optional evidence filters chosen by the user. Empty means no filter. */
+export interface RetrievalFilters {
+  /** Incident records: only these verification statuses. */
+  verification?: (typeof VERIFICATION_STATUSES)[number][];
+  /** Source articles: only sources graded this letter or better (A is best). */
+  minReliability?: (typeof RELIABILITY_GRADES)[number];
+}
+
+export function describeFilters(f: RetrievalFilters | undefined): string | null {
+  const parts: string[] = [];
+  if (f?.verification?.length) parts.push(`incidents: ${f.verification.map((v) => v.replace("_", "-")).join(", ")}`);
+  if (f?.minReliability && f.minReliability !== "F") parts.push(`sources graded ${f.minReliability === "A" ? "A" : `A–${f.minReliability}`}`);
+  return parts.length ? parts.join("; ") : null;
+}
 
 export interface Evidence {
   n: number;
@@ -56,11 +74,14 @@ interface ArticleRow {
   publisher: string | null; reliability: string | null; published_at: Date | null; is_demo: boolean; incident_id: string | null; stance: string;
 }
 
-export async function retrieve(tx: Tx, question: string, opts: { from: Date; to: Date; maxIncidents?: number }): Promise<Evidence[]> {
+export async function retrieve(tx: Tx, question: string, opts: { from: Date; to: Date; maxIncidents?: number; filters?: RetrievalFilters }): Promise<Evidence[]> {
   const terms = searchTerms(question);
   const countries = detectCountries(question);
   const query = terms.length ? tsOr(terms) : null;
   const maxInc = opts.maxIncidents ?? 6;
+  const verification: string[] = opts.filters?.verification ?? [];
+  // Grades are single letters A-F, so "A..grade" is a plain text comparison.
+  const maxGrade = opts.filters?.minReliability ?? "F";
 
   const incidents = await tx<IncidentRow[]>`
     select i.id, i.ref, i.title, i.summary, i.verification_status, i.severity, i.location_name, i.country_code,
@@ -68,6 +89,7 @@ export async function retrieve(tx: Tx, question: string, opts: { from: Date; to:
     from incidents i
     where i.status in ('active', 'closed') and i.review_status <> 'rejected'
       and i.last_reported_at >= ${opts.from.toISOString()}::timestamptz and i.first_reported_at <= ${opts.to.toISOString()}::timestamptz
+      and (${verification.length === 0} or i.verification_status = any(${verification}::text[]))
       and (
         ${query === null && countries.length === 0}
         or (${query}::text is not null and i.search @@ to_tsquery('simple', coalesce(${query}::text, '')))
@@ -86,7 +108,7 @@ export async function retrieve(tx: Tx, question: string, opts: { from: Date; to:
           select distinct on (ia.incident_id, ia.origin_key) a.id, a.url, a.title, a.title_en, a.excerpt, a.excerpt_en, a.language,
                  s.publisher, s.reliability, a.published_at, a.is_demo, ia.incident_id, a.stance
           from incident_articles ia join articles a on a.id = ia.article_id join sources s on s.id = a.source_id
-          where ia.incident_id = any(${incidentIds}::uuid[])
+          where ia.incident_id = any(${incidentIds}::uuid[]) and s.reliability <= ${maxGrade}
           order by ia.incident_id, ia.origin_key, (ia.role = 'original') desc, a.published_at
         ) x order by x.published_at desc nulls last limit 18`
     : [];
@@ -96,7 +118,7 @@ export async function retrieve(tx: Tx, question: string, opts: { from: Date; to:
         select a.id, a.url, a.title, a.title_en, a.excerpt, a.excerpt_en, a.language, s.publisher, s.reliability, a.published_at,
                a.is_demo, null::uuid as incident_id, a.stance
         from articles a join sources s on s.id = a.source_id
-        where a.status = 'processed' and a.retrieved_at >= ${opts.from.toISOString()}::timestamptz
+        where a.status = 'processed' and a.retrieved_at >= ${opts.from.toISOString()}::timestamptz and s.reliability <= ${maxGrade}
           and (a.search @@ to_tsquery('english', ${query}) or a.search @@ to_tsquery('arabic', ${query}))
           and not (a.id = any(${linked.map((l) => l.id)}::uuid[]))
         order by a.published_at desc nulls last limit 6`
