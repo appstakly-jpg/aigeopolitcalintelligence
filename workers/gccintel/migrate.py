@@ -8,6 +8,7 @@ already-applied migration is an error (migrations are immutable once applied).
 from __future__ import annotations
 
 import hashlib
+import os
 from pathlib import Path
 
 import psycopg
@@ -16,7 +17,8 @@ from .log import get_logger
 
 log = get_logger(__name__)
 
-MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "db" / "migrations"
+# Source checkout: <repo>/db/migrations. Installed package (Docker image): set MIGRATIONS_DIR.
+MIGRATIONS_DIR = Path(os.environ.get("MIGRATIONS_DIR") or Path(__file__).resolve().parents[2] / "db" / "migrations")
 
 
 def _checksum(text: str) -> str:
@@ -24,6 +26,8 @@ def _checksum(text: str) -> str:
 
 
 def migrate(dsn: str, migrations_dir: Path = MIGRATIONS_DIR) -> list[str]:
+    if not migrations_dir.is_dir() or not any(migrations_dir.glob("*.sql")):
+        raise FileNotFoundError(f"migrations directory not found or empty: {migrations_dir} (set MIGRATIONS_DIR)")
     applied_now: list[str] = []
     with psycopg.connect(dsn, autocommit=True) as conn:
         conn.execute(

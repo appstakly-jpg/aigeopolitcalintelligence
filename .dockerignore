@@ -1,0 +1,18 @@
+# Build context for workers/Dockerfile (the web app builds from apps/web with its own ignore file).
+.git
+apps
+var
+docs
+eval
+fixtures
+**/node_modules
+**/.next
+**/.venv
+**/__pycache__
+**/*.py[cod]
+**/*.egg-info
+**/.pytest_cache
+**/.ruff_cache
+workers/tests
+.env
+.env.*

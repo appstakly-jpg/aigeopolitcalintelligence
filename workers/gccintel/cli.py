@@ -87,13 +87,17 @@ def cmd_demo_setup(args, settings):
     generated = not password
     if generated:
         password = secrets.token_urlsafe(12)
+    emails = ["admin@demo.example", "analyst@demo.example", "reviewer@demo.example", "client@demo.example"]
     with connect(settings.database_url) as conn:
+        existing = fetch_one(conn, "select count(*) as n from app_users where email = any(%s)", (emails,))["n"]
         seed_reference(conn)
         tid = seed_demo(conn, args.feed_base_url, password)
         conn.commit()
-    _print({"tenant_id": tid, "users": ["admin@demo.example", "analyst@demo.example", "reviewer@demo.example",
-                                        "client@demo.example"],
-            "password": password if generated else "(value of DEMO_PASSWORD)", "feeds": args.feed_base_url})
+    if existing == len(emails):  # seeding is idempotent and never resets passwords
+        shown = "(unchanged: the demo users already existed)"
+    else:
+        shown = password if generated else "(value of DEMO_PASSWORD)"
+    _print({"tenant_id": tid, "users": emails, "password": shown, "feeds": args.feed_base_url})
 
 
 def cmd_demo_feeds(args, settings):
@@ -146,6 +150,16 @@ def cmd_demo_run(args, settings):
     finally:
         server.shutdown()
     _print(out)
+
+
+def cmd_demo_advance(args, settings):
+    """Release the next stage of the SYNTHETIC demo feeds (denials, corrections, follow-ups)."""
+    import httpx  # noqa: PLC0415
+    # The feed server only accepts this from loopback: run it where the feed server runs
+    # (`docker compose exec demo-feeds gccintel demo-advance`).
+    r = httpx.post(f"http://127.0.0.1:{args.port}/admin/stage", params={"set": args.stage}, timeout=10)
+    r.raise_for_status()
+    _print(r.json())
 
 
 def cmd_run_once(args, settings):
@@ -299,6 +313,10 @@ def build_parser() -> argparse.ArgumentParser:
     f.add_argument("--stage", type=int, default=1)
     f.add_argument("--auto-advance", type=int, help="release stage 2 after N seconds")
     f.set_defaults(fn=cmd_demo_feeds)
+    da = sub.add_parser("demo-advance", help="release the next stage of the SYNTHETIC demo feeds")
+    da.add_argument("--port", type=int, default=8088)
+    da.add_argument("--stage", type=int, default=2)
+    da.set_defaults(fn=cmd_demo_advance)
     r = sub.add_parser("demo-run", help="run the full synthetic demo end to end")
     r.add_argument("--host", default="127.0.0.1")
     r.add_argument("--port", type=int, default=8088)

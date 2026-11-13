@@ -7,7 +7,9 @@
 //      the client role can then read the published brief;
 //   4. the analyst removes their override and the derived values come back.
 //
-//   BASE_URL=http://localhost:3000 DEMO_PASSWORD=... [MAIL_DIR=../../var/mail] node scripts/workflow-e2e.mjs
+//   BASE_URL=http://localhost:3000 DEMO_PASSWORD=... [MAIL_DIR=../../var/mail | MAILPIT_URL=http://localhost:8025] \
+//     node scripts/workflow-e2e.mjs
+// MAIL_DIR checks emails written by `gccintel smtp-sink`; MAILPIT_URL checks the Docker demo's mail catcher.
 // Run it against a fresh demo (`gccintel demo-setup && gccintel demo-run`): it changes data.
 import { readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -17,6 +19,7 @@ const { chromium } = createRequire(import.meta.url)("playwright");
 const BASE = process.env.BASE_URL ?? "http://localhost:3000";
 const PASSWORD = process.env.DEMO_PASSWORD;
 const MAIL_DIR = process.env.MAIL_DIR;
+const MAILPIT_URL = process.env.MAILPIT_URL?.replace(/\/$/, "");
 if (!PASSWORD) {
   console.error("Set DEMO_PASSWORD to the password used by `gccintel demo-setup`.");
   process.exit(2);
@@ -51,7 +54,12 @@ async function signIn(browser, role) {
 }
 const incidents = async (page) => (await (await page.request.get(`${BASE}/api/v1/incidents?range=90d&limit=200`)).json()).data;
 const notice = (form, re) => form.getByText(re).first().waitFor({ timeout: 20_000 }).then(() => true, () => false);
-const mailCount = () => (MAIL_DIR ? readdirSync(MAIL_DIR).filter((f) => f.endsWith(".eml")).length : 0);
+// Newest-first subjects (Mailpit) or raw messages (smtp-sink directory).
+async function mails() {
+  if (MAILPIT_URL) return (await (await fetch(`${MAILPIT_URL}/api/v1/messages`)).json()).messages.map((m) => m.Subject);
+  if (MAIL_DIR) return readdirSync(MAIL_DIR).filter((f) => f.endsWith(".eml")).sort().reverse().map((f) => readFileSync(`${MAIL_DIR}/${f}`, "utf8"));
+  return null;
+}
 
 const browser = await chromium.launch();
 try {
@@ -83,16 +91,14 @@ try {
   const held = reviewer.locator("details").filter({ hasText: target.ref }).filter({ hasText: "Correction" })
     .filter({ has: reviewer.getByRole("button", { name: "Approve and send" }) });
   check((await held.count()) === 1, `one high-impact correction alert is held for review, not sent (${await held.count()})`);
-  const before = mailCount();
+  const before = (await mails())?.length ?? 0;
   await held.getByRole("button", { name: "Approve and send" }).click();
   // The review form disappears once the alert is no longer pending; its status line is the confirmation.
   const decided = reviewer.locator("details").filter({ hasText: target.ref }).filter({ hasText: "approved by reviewer" });
   check(await decided.first().waitFor({ timeout: 20_000 }).then(() => true, () => false), "alert approved by the reviewer");
-  if (MAIL_DIR) {
-    const mail = await until(() => {
-      const files = readdirSync(MAIL_DIR).filter((f) => f.endsWith(".eml")).sort();
-      return files.length > before ? readFileSync(`${MAIL_DIR}/${files.at(-1)}`, "utf8") : null;
-    }, "the scheduler to deliver the approved alert", 120_000, 3_000);
+  if (MAIL_DIR || MAILPIT_URL) {
+    const mail = await until(async () => { const m = await mails(); return m.length > before ? m[0] : null; },
+      "the scheduler to deliver the approved alert", 120_000, 3_000);
     check(/CORRECTION/.test(mail), "correction email delivered through SMTP");
   }
   await reviewer.goto(`${BASE}/alerts`);

@@ -4,6 +4,7 @@ import { getSession, rateLimit } from "@/lib/auth";
 import { composeAnswer, gatherEvidence } from "@/lib/chat";
 import { withRls } from "@/lib/db";
 import { parseRange } from "@/lib/range";
+import { isSameOrigin } from "@/lib/http";
 
 const Body = z.object({
   sessionId: z.string().uuid().optional(),
@@ -16,8 +17,7 @@ const Body = z.object({
 export async function POST(req: NextRequest) {
   const s = await getSession();
   if (!s) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const origin = req.headers.get("origin");
-  if (origin && origin !== req.nextUrl.origin) return NextResponse.json({ error: "cross-origin request refused" }, { status: 403 });
+  if (!isSameOrigin(req)) return NextResponse.json({ error: "cross-origin request refused" }, { status: 403 });
   if (!(await rateLimit(`chat:${s.userId}`, 3600, 60))) return NextResponse.json({ error: "Rate limit reached (60 questions per hour)." }, { status: 429 });
 
   const parsed = Body.safeParse(await req.json().catch(() => null));

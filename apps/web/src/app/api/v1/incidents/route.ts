@@ -3,6 +3,7 @@ import { getSession, rateLimit } from "@/lib/auth";
 import { withRls } from "@/lib/db";
 import { listIncidents, parseIncidentFilters } from "@/lib/queries";
 import { parseRange } from "@/lib/range";
+import { appUrl } from "@/lib/http";
 
 // GET /api/v1/incidents — the signed-in user's view of incidents (RLS applies), as JSON or CSV.
 // Query: range|from&to, country, category, verification, min_severity, review, q, limit (<=500), offset, format=json|csv
@@ -28,7 +29,7 @@ export async function GET(req: NextRequest) {
     affected_countries: r.affected_countries, location_name: r.location_name, lat: r.lat, lon: r.lon, geo_precision: r.geo_precision,
     geo_confidence: r.geo_confidence, casualties_killed: r.casualties_killed, casualties_injured: r.casualties_injured, source_count: r.source_count,
     independent_source_count: r.independent_source_count, first_reported_at: r.first_reported_at, last_reported_at: r.last_reported_at,
-    version: r.version, is_synthetic: r.is_demo, url: `${req.nextUrl.origin}/incidents/${r.id}`,
+    version: r.version, is_synthetic: r.is_demo, url: appUrl(`/incidents/${r.id}`),
   }));
   if (sp.format === "csv") {
     const cols = Object.keys(data[0] ?? { id: "" });
