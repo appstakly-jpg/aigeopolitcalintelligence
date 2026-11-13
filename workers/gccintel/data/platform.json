@@ -1,0 +1,32 @@
+{
+  "_comment": "Plans and the default risk methodology. Plan prices are intentionally null: pricing is configuration and has not been validated against the market.",
+  "plans": [
+    {"id": "trial", "name": "Trial", "description": "Evaluation workspace", "price_monthly_minor": null, "currency": null,
+     "limits": {"seats": 3, "sources": 15, "alert_rules": 5, "llm_monthly_usd": 5, "reports_per_day": 10},
+     "features": {"ai_chat": true, "pdf_export": false, "custom_sources": false, "branded_reports": false, "slack": false, "telegram": false}},
+    {"id": "team", "name": "Team", "description": "Analyst team workspace", "price_monthly_minor": null, "currency": null,
+     "limits": {"seats": 10, "sources": 60, "alert_rules": 50, "llm_monthly_usd": 50, "reports_per_day": 50},
+     "features": {"ai_chat": true, "pdf_export": true, "custom_sources": true, "branded_reports": false, "slack": true, "telegram": true}},
+    {"id": "enterprise", "name": "Enterprise", "description": "Multi-team deployment with branding", "price_monthly_minor": null, "currency": null,
+     "limits": {"seats": 200, "sources": 500, "alert_rules": 1000, "llm_monthly_usd": 1000, "reports_per_day": 500},
+     "features": {"ai_chat": true, "pdf_export": true, "custom_sources": true, "branded_reports": true, "slack": true, "telegram": true, "api_access": true}}
+  ],
+  "risk_methodology": {
+    "version": "1.0",
+    "name": "Evidence-weighted incident pressure (v1.0)",
+    "description_md": "## Evidence-weighted incident pressure - v1.0\n\nRisk is **not** derived from article volume or sentiment. Each score is computed only from canonical incident records stored in the platform, weighted by the strength of their evidence.\n\n**Inputs per country and dimension (window W, default 30 days):**\n\n1. **Observed event severity (S)** - sum over incidents mapped to the dimension (via the event taxonomy) of `severity_weight[severity] x verification_weight[status] x 0.5^(age_days / half_life)`. Incidents where the country is affected but not the primary location count at `affected_country_weight`.\n2. **Exposure (E)** - client-configurable multiplier from watchlists (default 1.0 = neutral). This is a client input, not data.\n3. **Vulnerability (V)** - analyst-set baseline multiplier per country/dimension (default 1.0 = neutral). This is an analyst judgement, documented per assessment.\n4. **Score** = `5 x (1 - exp(-(S x E x V) / k))`, where k is the saturation constant for the dimension. Bands: <1 low, <2 moderate, <3 elevated, <4 high, otherwise severe.\n\n**Coverage rule:** if no healthy, enabled source covers the country during the window, the result is `insufficient_data` and no score is shown.\n\n**Confidence** (qualitative): high when >= 3 healthy covering sources and >= 60% of contributing evidence is corroborated or confirmed; moderate when >= 2 sources or >= 30% corroborated; otherwise low.\n\n**Forecast uncertainty** (qualitative) reflects volatility of daily incident counts and coverage; it is not a probability.\n\nEvery assessment stores its inputs, the per-incident contributions and the methodology version, so historical charts always reflect stored calculations. Analysts may adjust the band with a written rationale; the computed value is preserved.",
+    "params": {
+      "window_days": 30,
+      "half_life_days": 14,
+      "severity_weights": {"1": 1, "2": 2, "3": 4, "4": 8, "5": 16},
+      "verification_weights": {"confirmed": 1.0, "corroborated": 0.85, "single_source": 0.5, "disputed": 0.35, "unverified": 0.2},
+      "affected_country_weight": 0.5,
+      "saturation_k": {"default": 24, "civil_unrest": 16, "regulatory_policy": 12, "cybersecurity": 12},
+      "bands": [[1.0, "low"], [2.0, "moderate"], [3.0, "elevated"], [4.0, "high"], [5.01, "severe"]],
+      "exposure_default": 1.0,
+      "vulnerability_default": 1.0,
+      "confidence": {"high_sources": 3, "high_corroborated_share": 0.6, "moderate_sources": 2, "moderate_corroborated_share": 0.3},
+      "source_healthy_max_failures": 3
+    }
+  }
+}

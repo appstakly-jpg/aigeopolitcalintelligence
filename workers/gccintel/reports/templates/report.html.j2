@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ content.title }}</title>
+<style>
+  :root { --ink:#16202a; --muted:#5b6672; --line:#d9dee3; --accent:#0d5c63; --warn:#9a3412; --bg:#ffffff; }
+  * { box-sizing: border-box; }
+  body { font-family: "Inter", "Noto Sans Arabic", system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink);
+         background: var(--bg); margin: 0; line-height: 1.5; font-size: 14px; }
+  main { max-width: 860px; margin: 0 auto; padding: 32px 24px 64px; }
+  header.doc { border-bottom: 3px solid var(--accent); padding-bottom: 12px; margin-bottom: 24px; }
+  .eyebrow { text-transform: uppercase; letter-spacing: .08em; font-size: 11px; color: var(--muted); }
+  h1 { font-size: 24px; margin: 4px 0 6px; }
+  h2 { font-size: 16px; margin: 28px 0 8px; padding-bottom: 4px; border-bottom: 1px solid var(--line); }
+  .meta { color: var(--muted); font-size: 12px; }
+  .banner { background: #fff7ed; border: 1px solid #fdba74; color: var(--warn); padding: 10px 12px; border-radius: 6px;
+            font-weight: 600; margin-bottom: 16px; }
+  .item { padding: 8px 0; border-bottom: 1px dashed var(--line); }
+  .pill { display: inline-block; font-size: 11px; border: 1px solid var(--line); border-radius: 999px; padding: 0 8px;
+          margin-right: 4px; color: var(--muted); }
+  .sev-4, .sev-5 { border-color: #b91c1c; color: #b91c1c; }
+  .ver-disputed { border-color: #b45309; color: #b45309; }
+  .empty { color: var(--muted); font-style: italic; }
+  ol.cites { font-size: 12px; color: var(--muted); padding-left: 20px; }
+  ol.cites li { margin-bottom: 4px; word-break: break-word; }
+  ol.cites a { color: var(--accent); }
+  .check { font-size: 12px; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--line); margin-top: 12px; }
+  .check.fail { border-color: #b91c1c; color: #b91c1c; }
+  [dir="rtl"] { font-family: "Noto Sans Arabic", sans-serif; }
+  @media print { main { padding: 0; } a { color: inherit; } }
+</style>
+</head>
+<body>
+<main>
+  {% if content.is_demo %}
+  <div class="banner">SYNTHETIC DEMO DATA - these events are fabricated test fixtures, not real news.</div>
+  {% endif %}
+  <header class="doc">
+    <div class="eyebrow">Unclassified - public-source intelligence | {{ meta.ref }} v{{ meta.version }} | {{ meta.status|upper }}</div>
+    <h1>{{ content.title }}</h1>
+    <div class="meta">Period: {{ content.period.start[:16]|replace('T', ' ') }} to {{ content.period.end[:16]|replace('T', ' ') }} UTC
+      | Generated {{ meta.generated_at[:16]|replace('T', ' ') }} UTC</div>
+  </header>
+
+  {% for s in content.sections %}
+  <section id="{{ s.key }}">
+    <h2>{{ s.heading }}</h2>
+    {% for p in s.get("paragraphs") or [] %}<p>{{ p.text|cite }}</p>{% endfor %}
+    {% for it in s.get("items") or [] %}
+      <div class="item">
+        <span class="pill">{{ it.incident_ref }}</span>
+        <span class="pill sev-{{ it.severity }}">Severity {{ it.severity }}/5</span>
+        <span class="pill ver-{{ it.verification }}">{{ it.verification|replace('_', ' ') }}</span>
+        {% if it.review_status == 'pending' %}<span class="pill">pending review</span>{% endif %}
+        <div>{{ it.text|cite }}</div>
+      </div>
+    {% endfor %}
+    {% if s.get("bullets") %}<ul>{% for b in s.bullets %}<li>{{ b }}</li>{% endfor %}</ul>{% endif %}
+    {% if s.get("empty") %}<p class="empty">{{ s.empty }}</p>{% endif %}
+  </section>
+  {% endfor %}
+
+  <section id="citations">
+    <h2>Sources cited</h2>
+    {% if citations %}
+    <ol class="cites">
+      {% for c in citations %}
+      <li id="c{{ c.n }}"><strong>{{ c.publisher }}</strong> (reliability {{ c.reliability }}, {{ c.source_type|replace('_', ' ') }}{% if c.is_demo %}, synthetic{% endif %}) -
+        <span {% if c.language == 'ar' %}dir="rtl"{% endif %}>{{ c.title }}</span>{% if c.title_en and c.title_en != c.title %} [EN: {{ c.title_en }}]{% endif %}.
+        Published {{ (c.published_at or 'unknown')[:16]|replace('T', ' ') }}; retrieved {{ (c.retrieved_at or '')[:16]|replace('T', ' ') }}.
+        Role: {{ c.role|replace('_', ' ') }}. <a href="{{ c.url }}" rel="noopener noreferrer">{{ c.url }}</a></li>
+      {% endfor %}
+    </ol>
+    {% else %}<p class="empty">No citations.</p>{% endif %}
+    {% if check %}
+    <div class="check {{ 'ok' if check.ok else 'fail' }}">Citation integrity check: {{ 'passed' if check.ok else 'FAILED' }}
+      ({{ check.checked_citations }} citations){% for e in check.errors %}<br>{{ e }}{% endfor %}</div>
+    {% endif %}
+  </section>
+</main>
+</body>
+</html>
