@@ -26,6 +26,7 @@ DEFAULT_TENANT_SETTINGS: dict[str, Any] = {
         "alert_high_impact_min_severity": 4,    # alerts on incidents >= 4 are high impact
         "high_impact_requires_review": True,    # never auto-send high-impact alerts
         "auto_send_standard_alerts": True,
+        "alert_max_age_hours": 24,              # "new" alerts only for incidents first reported within this
     },
     "verification_policy": {"corroboration_min_independent": 2, "confirmed_requires_analyst": True},
     "matching": {"window_hours": 72, "threshold": 0.6},

@@ -1,6 +1,8 @@
 """Tenant isolation and role enforcement via Postgres row-level security, report citation
 integrity, publication guard, broken-link auditing and secret encryption."""
 
+import json
+
 import psycopg
 import pytest
 from conftest import add_source, as_user, make_user, rss
@@ -60,6 +62,26 @@ def test_client_role_restrictions(conn, two_tenants):
         assert fetch_all(conn, "select id from llm_usage") == []                # admin-only cost data
         assert fetch_all(conn, "select id from analyst_reviews") == []          # review queue is staff-only
 
+
+
+def test_only_admins_change_organisation_settings(conn, two_tenants):
+    # The statements the Administration page runs (apps/web/src/app/(app)/admin/actions.ts).
+    a, b, *_ = two_tenants
+    admin, analyst = make_user(conn, a, "admin"), make_user(conn, a, "analyst")
+    patch = json.dumps({"review_policy": {"high_impact_requires_review": True, "alert_max_age_hours": 12}})
+    with as_user(conn, admin, a):
+        assert conn.execute("update tenants set settings = settings || %s::jsonb where id = %s", (patch, a)).rowcount == 1
+        assert conn.execute("update tenants set branding = branding || %s::jsonb where id = %s",
+                            ('{"accent": "#0d5c63"}', a)).rowcount == 1
+        assert conn.execute("update tenants set settings = settings || %s::jsonb where id = %s", (patch, b)).rowcount == 0
+    assert fetch_one(conn, "select settings from tenants where id = %s", (a,))["settings"]["review_policy"][
+        "alert_max_age_hours"] == 12
+    with as_user(conn, analyst, a):
+        assert conn.execute("update tenants set settings = settings || %s::jsonb where id = %s", (patch, a)).rowcount == 0
+    # updated_at is kept by a trigger and the plan is a billing decision: neither is writable by the app role.
+    for column, value in (("updated_at", "now()"), ("plan_id", "'enterprise'")):
+        with pytest.raises(psycopg.errors.InsufficientPrivilege), as_user(conn, admin, a):
+            conn.execute(f"update tenants set settings = settings, {column} = {value} where id = %s", (a,))
 
 def test_secret_columns_not_exposed(conn, two_tenants):
     a, *_ = two_tenants

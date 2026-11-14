@@ -54,6 +54,63 @@ If a model is configured it may add a summary and suggest categories, but its ou
 categories must exist in the taxonomy, places must resolve through the gazetteer, and every number
 or attribution must appear in the source text. Anything else is dropped.
 
+### Does the item report a new event?
+
+Event-type keywords say what an item is about, not whether it reports something that happened. On the
+first day of live feeds (14 November 2026) many items with violence keywords reported no new incident,
+so the rules (`text/events.py`, `agents/extraction.py: rule_extract`) check:
+
+| Rule | Example from live feeds | Effect |
+| --- | --- | --- |
+| News-agency dateline | "Riyadh, November 09 (QNA) - The Coalition ..." | The filing city is not used as the location |
+| Analysis, opinion, interview, explainer or question headline | "QNA Interview: Lebanon Min. Praises Qatar's Mediation Efforts" | No event categories |
+| Reaction headline (condemns, welcomes, urges, calls for ...) | "Kuwaiti Cabinet Condemns Continued Houthi Attacks on Saudi Arabia" | Violence categories dropped unless the words before the reaction verb report an event; categories named only as the demand ("urge UK government to impose sanctions") dropped |
+| Running tally | "UN says 25 seafarers killed in, around Hormuz since US-Israel war on Iran"; "Gaza Death Toll ... Rises to 74,645" | Violence categories dropped (an updated toll below 1,000 for one incident is kept) |
+| No event word in the headline or the first two sentences | "Iraq expects first purchases of air defence systems to arrive soon" | Violence categories dropped |
+| Headline without an event word and a single weak violence keyword in the text | "Newborn twins fight for survival as conflict fuels Yemen's hunger crisis" | Violence categories dropped (background) |
+
+Violence categories are armed clash, drone/missile, political violence, terrorism, cross-border attack,
+maritime incident and energy disruption. Event words are verbs and nouns such as attack, strike,
+intercepted, explosion, killed, seized, clashes, caught fire or outage, with their Arabic stems.
+A ceasefire violation ("Israeli attacks kill 6 ... in Gaza despite ceasefire") is an armed clash; only an
+agreement, talks, an extension or a collapse of a ceasefire is a geopolitical development. Dropped items
+stay stored, searchable and available to the AI analyst, and the reason is kept with the candidate.
+
+### Where did it happen?
+
+The gazetteer (`text/gazetteer.py: Gazetteer.resolve`) finds every place mentioned, then chooses the
+event location:
+
+1. A place introduced by a locative word ("in", "at", "near", "off", "over", "outside", "targeting",
+   Arabic "في", "قرب", "داخل", "نحو" ...) beats a place that is only mentioned, and a place in the
+   headline beats one in the text. A more precise place inside the chosen one is preferred ("Explosion
+   reported in Saudi Arabia ... at the port in Jeddah" is placed in Jeddah).
+2. "on" and "على" place an event only after an attack word ("strike on Gaza hospital"), not when they
+   introduce a topic ("positions on Gaza", "sanctions on Israel"). "over" does not after words such as
+   "row", "talks" or "sanctions". A place followed by a topic word ("Gaza genocide", "Yemen talks") or
+   naming an agreement ("Makkah pact", "اتفاق الرياض") is not a location.
+3. Country adjectives ("Israeli bombardment of Gaza Strip") and origins ("drone from Ethiopia") are used
+   only when nothing else is named. A possessive is read as the place ("UAE's ADNOC").
+4. **Outside the coverage area.** When the headline's first locative place (or, if the headline names
+   no place, the first sentence's) is outside the coverage area, for example "drone activity over UK air
+   base", the item is not placed on the map. 31 such places are listed in English and Arabic: the UK,
+   the US, Russia, China, Türkiye, Pakistan, North African, European and Asian countries, and Europe.
+
+### Relevance
+
+| Where | Relevance |
+| --- | --- |
+| In a GCC country | 1.0 |
+| Elsewhere in the coverage area, with a GCC country affected or named | 0.8 |
+| A strategic waterway (Gulf waters, Red Sea, Arabian Sea) | 0.7 |
+| Outside the coverage area, with a GCC country involved | 0.6 |
+| Security event elsewhere in the coverage area (Iraq, Iran, Yemen, Israel and Palestine, Jordan, Lebanon, Syria, Egypt, the Horn of Africa) | 0.5 |
+| Political or social news there without a GCC link | 0.3 |
+| Outside the coverage area | 0.15 |
+| No place resolved | 0.1 |
+
+An item becomes an incident candidate at relevance 0.45 or more with at least one event category.
+
 ## Event matching
 
 A new report joins an existing incident when the best match score in the matching window (default
@@ -61,12 +118,26 @@ A new report joins an existing incident when the best match score in the matchin
 
 | Signal | Points |
 | --- | --- |
-| Same primary category (or the overlap share of categories) | up to 0.35 |
+| Same primary category 0.35; one report's primary category among the other's categories 0.30; otherwise the overlap share of categories | up to 0.35 |
 | Same place 0.30; parent/child place 0.25 (0.15 via a country); within 75 km 0.25, 250 km 0.15; same country only 0.12 | up to 0.30 |
 | Headline word overlap | up to 0.20 |
 | Shared actor | 0.15 |
 | Reported within 24 hours of the incident's latest report | 0.05 |
 | Denial or correction near the same place and category | 0.10 |
+
+**One physical event, one place, one time.** When either side has a violence category, the score is 0
+if the report cannot describe the same physical event (`_physical_event_veto`):
+
+- the places conflict: different countries, or two precise places (cities, ports, facilities, places with
+  an uncertainty of 150 km or less) more than 100 km apart plus their uncertainty;
+- the event times are more than 24 hours apart (the stated event time, otherwise the report time);
+- both reports state a day, and the days differ;
+- either place is broad (a country or a sea) and the headlines share less than 35% of their content
+  words, unless both name the same sea or strait, with matching event types, within 6 hours.
+
+Recurring attacks, such as interceptions over Riyadh and over Makkah, or strikes in Gaza on consecutive
+days, therefore stay separate incidents; reports in English and Arabic of one tanker incident in the
+Strait of Hormuz are grouped. The reason for every decision is stored with the candidate.
 
 ## Verification
 
@@ -186,9 +257,14 @@ not forecasts.** Forecasting and trend modelling are on the [roadmap](roadmap.md
   incident version.
 - **Throttling**: a rule's `throttle_minutes` allows one new standard alert per window; the rest are
   recorded as suppressed.
+- **Backlog**: a new-incident alert is created for sending only when the incident was first reported
+  within the last 24 hours (Administration → Policies, "Alert on incidents first reported within").
+  Older incidents, for example from a new source's first fetch or a reprocessing run, are recorded once
+  per rule as suppressed alerts and never sent as breaking news.
 - **Follow-ups**: subscribers get an update when severity, verification status, fatalities or place
   changes, and always get corrections and retractions. An alert still waiting for review is refreshed
-  instead of stacking a second one.
+  to each new incident version (title, text and impact) instead of stacking a second one, so the
+  reviewer approves what is current.
 - **Delivery** per channel (email, Slack, Telegram, webhook) with up to 5 attempts, retried after 1,
   5, 15 and 60 minutes. Every attempt is logged with a masked destination.
 
@@ -202,6 +278,13 @@ Reports record which incident versions they cite; publishing after a cited incid
 the reviewer to acknowledge the changes, which is audited. If a model rewrites the executive summary,
 the rewrite is accepted only if it passes the same check.
 
+Citation numbers follow the order in which evidence first appears in the brief. A country section lists
+the incidents in that country and, for incidents outside the GCC, those that name the country as
+affected (an incident placed in Yemen that names Saudi Arabia as affected also appears under Saudi
+Arabia). The
+methodology note states how many monitored sources are limited to headlines, links and short excerpts
+because their licences have not been reviewed.
+
 ## AI analyst
 
 The analyst chat retrieves stored incidents and articles for the question and period (full-text
@@ -213,8 +296,15 @@ instead and says why. Requests to locate, profile or track a person are declined
 ## Known limitations
 
 - Extraction rules cover English and Arabic; other languages need a configured model for translation.
-- The gazetteer is deliberately small (129 places); unknown places leave an incident unplaced.
+  Without a model there are no translations or summaries, so reports of one event in English and Arabic
+  are grouped only when both name a precise place; country-level reports in two languages stay apart.
+- The gazetteer is deliberately small (129 places). Places it does not know fall back to the country
+  (Saada and Kordofan on 14 November) or leave an incident unplaced.
+- **Corroboration counts outlets, not claimants.** Five outlets relaying one party's statement count as
+  five origins: on 14 November the Strait of Hormuz tanker incident was "corroborated" mostly by reports
+  of the same IRGC claim. Treat corroboration of a single claimant's statement with care until
+  claimant-aware corroboration is built ([roadmap](roadmap.md)). Actor attribution by rules is noisy.
 - Reliability grades are provisional. Coverage is biased towards English and Arabic outlets with
   feeds, and absence of reporting is not evidence of absence.
-- The evaluation set is small and synthetic ([eval/README.md](../eval/README.md)); measure on
-  analyst-labelled real data before relying on the numbers.
+- The evaluation set is small and synthetic ([eval/README.md](../eval/README.md)); the live check on
+  14 November was a manual review by the developer, not an analyst-labelled dataset.

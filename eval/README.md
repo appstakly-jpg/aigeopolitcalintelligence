@@ -38,27 +38,51 @@ set with manually reviewed real incidents before relying on any number ([roadmap
 
 ## Latest results
 
-13 November 2026, rules only (no model configured), PostgreSQL 16:
+14 November 2026, rules only (no model configured), PostgreSQL 16:
 
 | Metric | Result |
 | --- | --- |
 | Relevance | precision 1.0, recall 1.0 (19 TP, 0 FP, 0 FN, 5 TN) |
-| Category recall | **0.947** |
+| Category recall | 1.0 |
 | Location / country / casualties / stance accuracy | 1.0 / 1.0 / 1.0 / 1.0 |
 | Clustering | pairwise precision 1.0, recall 1.0 |
 | Alerts | precision 1.0, recall 1.0, false alert rate 0.0 (3 TP, 0 FP, 0 FN, 11 TN) |
 | Citations | integrity check passed; every brief item cites evidence of its own incident (19 citations) |
-| Latency | 0.45 s for the run, 18 ms per article |
+| Latency | 0.79 s for the run, 32 ms per article |
 | Cost | 0 model calls, $0.00 |
 
-**Failure (1):** `e15: category drone_missile not in ['maritime_incident']`. "Houthi forces claim
-missile attack on ship in Red Sea" is classified as a maritime incident but not as a drone/missile
-attack. Its only drone/missile cue is the single word "missile" (weight 1), which falls below the bar
-for a secondary category next to the stronger maritime cues ("merchant ship", "vessel"; score 3). The
-incident is still created, placed in the Red Sea and linked to the right event, but without the
-category it is missed by alert rules that list drone/missile but not maritime incidents and does not count towards the
-armed-conflict and energy-infrastructure risk dimensions. It is left visible rather than patched to
-the test.
+No failures. The earlier failure (e15: "Houthi forces claim missile attack on ship in Red Sea" classified
+as a maritime incident only) disappeared when attack phrases such as "missile attack" and "drone strike"
+were added to the drone/missile type while working on live headlines. The rules keep being changed with
+this set in view, so a perfect score here shows that the pipeline behaves as designed, not that it is
+accurate on real news.
 
 Not measured here: model-assisted extraction and translation, the AI analyst's answers, and
 performance on real reporting. Those need an API key and an analyst-labelled real dataset.
+
+## Live check on real feeds
+
+On 14 November 2026 the pipeline ran on the 18 working public feeds ([docs/sources.md](../docs/sources.md))
+without a model key. Of 570 articles stored by 10:20 UTC:
+
+| Outcome | Articles |
+| --- | --- |
+| Kept as reports of security events in the coverage area | 35, grouped into 24 incidents (3 with several independent outlets) |
+| No event category (sport, business, politics elsewhere ...) | 389 |
+| Official travel advisories (shown on country pages, not incidents) | 107 |
+| Event category but no place in the coverage area named (Microsoft outage, US flights, France, Ukraine ...) | 13 |
+| Violence keywords but no new event: no specific event 8, running tally 4, reaction or demand 3, commentary or interview 3, background mention 3 | 21 |
+| Political or social news in the region without a GCC link | 4 |
+| Happened outside the coverage area | 1 |
+
+Every kept item was checked by hand against its source article: each reports a real event that the
+article describes, placed where the article says it happened (at country level when the gazetteer does
+not know the place, such as Saada or Kordofan). Discarded items were spot-checked, not
+reviewed one by one, so missed events are not measured; one known miss is a GCC statement welcoming a
+UN Security Council resolution on the Houthis, dropped because it names no place. Each class of error
+found during the check (datelines read as places, reactions and tallies turned into incidents, topics
+read as places, events abroad placed in the region, separate attacks merged into one incident) is now a
+regression test in `workers/tests/test_real_headlines.py`.
+
+This was a check by the developer, not an analyst-labelled dataset. Building one from reviewed live
+incidents is the first evaluation task on the [roadmap](../docs/roadmap.md).

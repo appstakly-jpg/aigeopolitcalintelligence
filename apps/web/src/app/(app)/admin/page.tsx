@@ -137,6 +137,7 @@ export default async function AdminPage() {
                 <Label hint="Any incident at or above this severity needs review">Review incidents from severity<Input name="incident_min_severity" type="number" min={1} max={5} defaultValue={Number(rp.incident_min_severity ?? 4)} /></Label>
                 <Label hint="Single-source, unverified or disputed incidents">…weakly sourced from severity<Input name="incident_unverified_min_severity" type="number" min={1} max={5} defaultValue={Number(rp.incident_unverified_min_severity ?? 3)} /></Label>
                 <Label>High-impact alerts from severity<Input name="alert_high_impact_min_severity" type="number" min={1} max={5} defaultValue={Number(rp.alert_high_impact_min_severity ?? 4)} /></Label>
+                <Label hint="Older incidents are recorded as suppressed alerts, not sent">Alert on incidents first reported within (hours)<Input name="alert_max_age_hours" type="number" min={1} max={720} defaultValue={Number(rp.alert_max_age_hours ?? 24)} /></Label>
                 <Label>Independent origins to corroborate<Input name="corroboration_min_independent" type="number" min={2} max={5} defaultValue={Number(vp.corroboration_min_independent ?? 2)} /></Label>
                 <Label hint="Model calls stop for the rest of the month once spend reaches it; 0 turns model use off">LLM monthly budget (USD)<Input name="monthly_budget_usd" type="number" min={0} step="1" defaultValue={Number(d.tenant.settings.llm?.monthly_budget_usd ?? 25)} /></Label>
               </div>

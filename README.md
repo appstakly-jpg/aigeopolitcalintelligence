@@ -17,12 +17,12 @@ requests to do so.
 
 | Area | State |
 | --- | --- |
-| Pipeline: scheduling, polite fetching, canonicalisation, dedup, near-duplicate and syndication detection, language detection, extraction, corroboration, versioned incidents, corrections and retractions | Working, tested (55 worker tests), demonstrated end to end on synthetic feeds |
+| Pipeline: scheduling, polite fetching, canonicalisation, dedup, near-duplicate and syndication detection, language detection, extraction, corroboration, versioned incidents, corrections and retractions | Working, tested (94 worker tests). Run end to end on synthetic feeds and, on 14 November 2026, on 18 live public feeds: 570 articles, 35 event reports, 24 incidents, each checked by hand against its article ([eval/README.md](eval/README.md#live-check-on-real-feeds)) |
 | Web app: 13 sections plus review queue, global search, AI analyst, incident API, map, EN/AR (RTL), dark/light | Working, tested (33 unit tests, browser smoke test for 4 roles, browser workflow test) |
 | Reports: 7 types, citation integrity enforced in the database, draft/review/publish, versions, HTML/DOCX export, branding | Working. PDF export needs Chromium in the worker image (optional build) |
-| Alerts: rules, dedup, throttling, human review for high impact, updates/corrections/retractions, delivery logs and retries | Working with email (SMTP). Slack, Telegram and webhook adapters are implemented and tested with mocks only |
+| Alerts: rules, dedup, throttling, human review for high impact, backlog suppression, updates/corrections/retractions, delivery logs and retries | Working with email (SMTP); on live data, standard alerts were delivered to a local mail sink and a high-impact alert was held for review. Slack, Telegram and webhook adapters are implemented and tested with mocks only |
 | AI models (Claude, OpenAI, Gemini) for extraction, translation, brief narrative and the AI analyst | Implemented behind budgets and validation, **not exercised against live APIs here** (no keys). Without a key everything runs deterministically and says so |
-| Live sources | 21 catalogued public sources; **12 need licence review** before use; live fetching was not possible from the build sandbox (news hosts blocked), so only synthetic feeds were run |
+| Live sources | 21 catalogued public sources, **18 fetched successfully** on 14 November 2026. Arab News blocks automated clients, UN News's robots.txt disallows its feed, and GDELT rate-limited the shared outbound address. **12 sources need licence review**; the 10 of them in use run in limited mode (headline, link, short excerpt) until then ([docs/sources.md](docs/sources.md)) |
 | SaaS: organisations, seats, plans, feature flags, usage limits, watchlists, test-mode billing | Working; prices are deliberately unset (configuration, not validated pricing) |
 | Docker Compose deployment with a demo profile | Working: images build, stack starts healthy, browser tests pass against it |
 
@@ -63,6 +63,22 @@ Then, as the admin: **Sources** → add sources from the catalogue, complete the
 them; the scheduler fetches them on their intervals. Put the app behind TLS before real use. See
 [docs/deployment.md](docs/deployment.md).
 
+What to expect on live sources (as run on 14 November 2026, without a model key):
+
+```bash
+docker compose run --rm migrate gccintel sources-verify --tenant acme   # robots.txt, reachability, parsing, dates
+```
+
+- Approve the sources that pass under **Sources**. A source whose licence is still `review_required`
+  can only be approved for limited use (headline, link, short excerpt).
+- The first fetch stores a backlog: on 14 November the 18 working feeds gave 570 articles, 35 event
+  reports and 24 incidents on their first fetches. Incidents first reported more than 24 hours earlier are
+  recorded as suppressed alerts, not sent.
+- Create alert rules under **Alerts**. Standard alerts are sent at once; high-impact alerts (severity 4
+  and above by default) wait in **Alerts** for a reviewer.
+- The daily brief is generated at the brief hour set under **Administration** and waits for a reviewer
+  to publish it.
+
 ## Local development without Docker
 
 Requirements: Node 22, Python 3.12+, PostgreSQL 16 with the `vector` and `citext` extensions.
@@ -89,11 +105,11 @@ cd ../apps/web && npm ci && npm run dev      # http://localhost:3000
 
 | Command | What it covers |
 | --- | --- |
-| `cd workers && pytest` | 55 tests against a throwaway Postgres database: multilingual parsing, dedup and syndication, independent corroboration, time zones, corrections and retractions, broken links, prompt injection (including a compromised model), tenant isolation under RLS, role restrictions, notification dedup and throttling, delivery retries, report citation integrity, analyst corrections, branding, redirect SSRF, LLM budgets |
+| `cd workers && pytest` | 94 tests against a throwaway Postgres database: multilingual parsing, dedup and syndication, independent corroboration, time zones, corrections and retractions, broken links, prompt injection (including a compromised model), tenant isolation under RLS, role restrictions, admin-only settings, notification dedup, throttling and backlog suppression, delivery retries, report citation integrity, analyst corrections, branding, redirect SSRF, LLM budgets, and regression cases from live feeds (datelines, reactions, tallies, event locations, grouping of reports into incidents) |
 | `cd apps/web && npm test && npm run lint && npm run typecheck && npm run build` | 33 unit tests (crypto shared with Python, TOTP vectors, citation checking, retrieval safety, targeting guard, override bookkeeping, same-origin checks, chat export), lint, types, production build |
 | `node apps/web/scripts/smoke.mjs` | Browser: every section for all four roles, role refusals, unreviewed incidents marked for clients, grounded chat with evidence filters and export, targeting refusal, no access to other users' conversations, anonymous API refusal |
 | `node apps/web/scripts/workflow-e2e.mjs` | Browser: analyst correction → worker re-derivation → high-impact correction alert held → reviewer approval → email → brief publication with change acknowledgement → override removal |
-| `gccintel eval --out var/eval.json` | Precision, recall, false alert rate, citation correctness, latency and cost on the evaluation set. See [eval/README.md](eval/README.md), including the failing case |
+| `gccintel eval --out var/eval.json` | Precision, recall, false alert rate, citation correctness, latency and cost on the synthetic evaluation set, plus the live check on real feeds. See [eval/README.md](eval/README.md) |
 
 Both browser scripts need `DEMO_PASSWORD` and a running instance with the demo loaded
 (`BASE_URL`, default http://localhost:3000); the workflow script changes data, so run it on a fresh demo.

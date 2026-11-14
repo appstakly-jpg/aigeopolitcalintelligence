@@ -70,6 +70,7 @@ const Policy = z.object({
   incident_min_severity: z.coerce.number().int().min(1).max(5),
   incident_unverified_min_severity: z.coerce.number().int().min(1).max(5),
   alert_high_impact_min_severity: z.coerce.number().int().min(1).max(5),
+  alert_max_age_hours: z.coerce.number().int().min(1).max(720),
   high_impact_requires_review: z.boolean(),
   auto_send_standard_alerts: z.boolean(),
   corroboration_min_independent: z.coerce.number().int().min(2).max(5),
@@ -81,7 +82,7 @@ export async function savePoliciesAction(_p: State, form: FormData): Promise<Sta
     const s = await actionSession(["admin"]);
     const d = Policy.parse({
       ...Object.fromEntries(["timezone", "daily_brief_hour", "incident_min_severity", "incident_unverified_min_severity", "alert_high_impact_min_severity",
-        "corroboration_min_independent", "monthly_budget_usd"].map((k) => [k, form.get(k)])),
+        "alert_max_age_hours", "corroboration_min_independent", "monthly_budget_usd"].map((k) => [k, form.get(k)])),
       high_impact_requires_review: form.get("high_impact_requires_review") === "on",
       auto_send_standard_alerts: form.get("auto_send_standard_alerts") === "on",
     });
@@ -90,12 +91,14 @@ export async function savePoliciesAction(_p: State, form: FormData): Promise<Sta
         timezone: d.timezone,
         reports: { daily_brief_hour: d.daily_brief_hour },
         review_policy: { incident_min_severity: d.incident_min_severity, incident_unverified_min_severity: d.incident_unverified_min_severity,
-          alert_high_impact_min_severity: d.alert_high_impact_min_severity, high_impact_requires_review: d.high_impact_requires_review,
+          alert_high_impact_min_severity: d.alert_high_impact_min_severity, alert_max_age_hours: d.alert_max_age_hours,
+          high_impact_requires_review: d.high_impact_requires_review,
           auto_send_standard_alerts: d.auto_send_standard_alerts },
         verification_policy: { corroboration_min_independent: d.corroboration_min_independent, confirmed_requires_analyst: true },
         llm: { monthly_budget_usd: d.monthly_budget_usd },
       };
-      await tx`update tenants set settings = settings || ${tx.json(patch)}, updated_at = now() where id = ${s.tenantId}`;
+      // updated_at is set by the tenants_touch trigger; the authenticated role may write only name, settings and branding.
+      await tx`update tenants set settings = settings || ${tx.json(patch)} where id = ${s.tenantId}`;
       await audit(tx, s, "tenant.policies", "tenant", s.tenantId, { ...patch, warning: d.high_impact_requires_review ? null : "high-impact alerts no longer require review" });
     });
     revalidatePath("/admin");
@@ -171,7 +174,7 @@ export async function saveBrandingAction(_p: State, form: FormData): Promise<Sta
     await withRls(s, async (tx) => {
       const [p] = await tx<{ features: { branded_reports?: boolean } }[]>`select p.features from plans p join tenants t on t.plan_id = p.id where t.id = ${s.tenantId}`;
       if (!p?.features?.branded_reports) throw new Error("Branded reports are not included in your plan.");
-      await tx`update tenants set branding = branding || ${tx.json(d)}, updated_at = now() where id = ${s.tenantId}`;
+      await tx`update tenants set branding = branding || ${tx.json(d)} where id = ${s.tenantId}`;
       await audit(tx, s, "tenant.branding", "tenant", s.tenantId, d);
     });
     revalidatePath("/admin");

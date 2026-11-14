@@ -32,35 +32,53 @@ attributable sources: their statements are recorded as claims of the stated part
 ## Catalogue
 
 `workers/gccintel/data/sources.json` lists 21 candidate sources. New organisations get them as
-**proposed and disabled**; an admin reviews the terms and approves each one. "Checked" means the URL
-returned a valid feed in an external fetch on 13 November 2026 (the build environment itself could not
-reach these hosts); run `gccintel sources-verify --tenant <slug>` from your deployment.
+**proposed and disabled**; an admin reviews the terms and approves each one.
 
-| Source | Language | Type | Grade | Licence | Checked |
+"Live result" is what happened when the platform fetched each feed on 14 November 2026 from the
+development machine, first with `gccintel sources-verify` (robots.txt, reachability, parsing, dates) and
+then on the normal schedule. 18 of the 21 feeds worked and stored 568 articles in the first hours. Run
+the check again from your deployment network, whose outbound address may be treated differently.
+
+| Source | Language | Type | Grade | Licence | Live result (14 Nov 2026) |
 | --- | --- | --- | --- | --- | --- |
-| Al Jazeera English (all news) | en | news media | B | review required | yes |
-| Al Jazeera Arabic (الجزيرة نت) | ar | news media | B | review required | yes |
-| Arab News | en | news media | C | review required | yes |
-| Asharq Al-Awsat (الشرق الأوسط) | ar | news media | C | review required | yes |
-| The National (UAE) | en | news media | C | review required | yes |
-| Middle East Eye | en | news media | C | review required | yes |
-| Qatar News Agency, Qatar | en | state media | C | review required | yes |
-| Qatar News Agency, General | en | state media | C | review required | yes |
-| Anadolu Agency, Middle East | en | wire agency | C | review required | yes |
-| IAEA Top News | en | international organisation | B | review required | yes |
-| BBC News, Middle East | en | news media | B | review required | no (automated fetch blocked) |
-| UN News, Middle East | en | international organisation | B | review required | no (client error; URL may have changed) |
-| US State Department travel advisories | en | government | B | public domain | yes |
-| UK FCDO travel advice: Saudi Arabia, UAE | en | government | B | Open Government Licence v3.0 | yes |
-| UK FCDO travel advice: Qatar, Kuwait, Bahrain, Oman, Yemen | en | government | B | Open Government Licence v3.0 | same URL pattern, not fetched individually |
-| GDELT DOC 2.0 (GCC article list) | en | aggregator | F | attribution (GDELT); articles keep their own rights | no (server error) |
+| Al Jazeera English (all news) | en | news media | B | review required | works |
+| Al Jazeera Arabic (الجزيرة نت) | ar | news media | B | review required | works |
+| Arab News | en | news media | C | review required | **HTTP 403** from the publisher's bot protection; left proposed |
+| Asharq Al-Awsat (الشرق الأوسط) | ar | news media | C | review required | works |
+| The National (UAE) | en | news media | C | review required | works |
+| Middle East Eye | en | news media | C | review required | works |
+| Qatar News Agency, Qatar | en | state media | C | review required | works (times read as Doha time, see notes) |
+| Qatar News Agency, General | en | state media | C | review required | works (times read as Doha time) |
+| Anadolu Agency, Middle East | en | wire agency | C | review required | works |
+| IAEA Top News | en | international organisation | B | review required | works (dates without an offset read as Vienna time) |
+| BBC News, Middle East | en | news media | B | review required | works |
+| UN News, Middle East | en | international organisation | B | review required | **robots.txt disallows** automated fetching; left proposed |
+| US State Department travel advisories | en | government | B | public domain | works (travel advisories) |
+| UK FCDO travel advice: Saudi Arabia, UAE, Qatar, Kuwait, Bahrain, Oman, Yemen (7 feeds) | en | government | B | Open Government Licence v3.0 | all 7 work (travel advisories) |
+| GDELT DOC 2.0 (GCC article list) | en | aggregator | F | attribution (GDELT); articles keep their own rights | **HTTP 429** (rate limit on the shared outbound address); approved, retried on schedule |
 
 Notes:
-- BBC feeds are for personal, non-commercial use unless licensed. Wire content (Anadolu) normally
-  needs a licence for commercial reuse. The other news feeds stay at headline, link and short
-  excerpt until their terms are confirmed.
-- GDELT is graded F because it is an index of other publishers' articles: each linked article is
-  assessed through its own publisher.
+- **Limited use until licences are reviewed.** Twelve catalogue sources are `review_required`. The ten
+  of them that work (news, agency and IAEA feeds) were approved in the live test for limited use only:
+  headline, link and an excerpt of at most 320 characters. A source whose licence has not been reviewed cannot be set to
+  full text (admin action and database constraint), and briefs say how many of their sources are in
+  this state. Review each publisher's terms before commercial use: BBC feeds are for personal,
+  non-commercial use unless licensed, and Anadolu's wire content normally needs a licence.
+- **Arab News** answers automated clients with HTTP 403 from its bot protection (an external fetch on
+  13 November worked). This is an access control and is not worked around: enable the source only
+  with the publisher's permission or a licensed feed.
+- **UN News**: its robots.txt disallows generic crawlers on the feed path, so the source stays
+  disabled. For UN humanitarian updates, the ReliefWeb API is on the [roadmap](roadmap.md).
+- **GDELT** allows one request per 5 seconds per address and returned HTTP 429 to the development
+  machine's shared outbound address. The adapter paces its requests, honours `Retry-After` and backs
+  off; check it again from the deployment network. GDELT is graded F because it is an index of other
+  publishers' articles: each linked article is assessed through its own publisher.
+- **Feed times.** QNA's feeds label Doha local time as UTC, so their stated offset is ignored and times
+  are read as `Asia/Qatar` (`ignore_feed_offset` in the catalogue entry). IAEA dates without an offset
+  are read as `Europe/Vienna`. Publication dates in the future are rejected.
+- **Travel advisories.** The US State Department and UK FCDO feeds have the content kind
+  `travel_advisory`: they are stored but not turned into incidents. The latest advisory from each
+  source is shown on the country page under "Official travel advisories".
 
 ### References consulted
 

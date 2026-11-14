@@ -7,10 +7,10 @@ forecasting, complex maritime integrations, billing and enterprise customisation
 
 | Item | Why |
 | --- | --- |
-| Licence and terms review of every catalogue source, then `gccintel sources-verify` from the deployment network | 12 of 21 sources are `review_required`; live fetching could not be tested from the build environment; UN News and GDELT URLs need re-checking |
+| Licence and terms review of every catalogue source, then `gccintel sources-verify` from the deployment network | 12 of 21 sources are `review_required` (10 run in limited mode); Arab News needs the publisher's permission; GDELT must be re-checked from the deployment address ([sources.md](sources.md#catalogue)) |
 | Run with a model API key and measure: extraction, translation, brief narrative and AI analyst quality, refusals and cost | Model paths are implemented and validated but were never exercised against live APIs |
-| Analyst-labelled evaluation set from real, manually reviewed incidents; track the metrics per release | The current set is small, synthetic and written by the developers ([eval/README.md](../eval/README.md)) |
-| Fix the known evaluation failure (missile attack on a ship classified as maritime only) | Category recall 0.947 on the synthetic set |
+| Claimant-aware corroboration: count who makes a claim separately from the outlets relaying it | Five outlets relaying one IRGC statement made the Strait of Hormuz incident "corroborated" on 14 November ([methodology.md](methodology.md#known-limitations)) |
+| Analyst-labelled evaluation set from real, manually reviewed incidents, starting with the live incidents of 14 November; measure missed events too; track the metrics per release | The synthetic set scores 1.0 because the rules were written alongside it; the live check was the developer's, and discarded items were only spot-checked ([eval/README.md](../eval/README.md)) |
 | Require MFA for admins and reviewers; server-side session list with revoke | See [security.md](security.md#known-gaps) |
 | Egress firewall for workers (deny private ranges and cloud metadata), HSTS at the proxy | Defence in depth for the SSRF guard and transport security |
 | Automated backups with a tested restore, alerting on `/api/health`, dead jobs and failing sources | Operations |
@@ -25,8 +25,10 @@ forecasting, complex maritime integrations, billing and enterprise customisation
 | Risk history charts | Daily assessments with methodology versions are already stored; chart them per country and dimension |
 | Methodology management | Publish new methodology versions (weights, vulnerability baselines) from the app; carry analyst band adjustments forward with an expiry |
 | Semantic retrieval | Hybrid full-text and pgvector retrieval for the AI analyst and for event matching |
-| Languages and places | Persian, Hebrew and Turkish extraction through translation; more gazetteer entries (provinces, ports, facilities, Horn of Africa) |
-| Source management | Edit country focus, priority and feed time zone for custom sources; reliability track record from corrections and retractions |
+| Languages and places | Persian, Hebrew and Turkish extraction through translation; grouping English and Arabic reports through translation when no precise place is named; more gazetteer entries (provinces, districts such as Saada and Kordofan, ports, facilities, Horn of Africa) |
+| Source management | Edit country focus, priority, content kind and feed time zone (including ignoring a wrong feed offset) for custom sources; reliability track record from corrections and retractions |
+| More sources | ReliefWeb API for UN humanitarian updates (UN News's feed is disallowed by robots.txt); licensed news APIs |
+| Alerts | Alert when an official travel advisory for a watched country changes; per-incident throttling (the standard throttle is per rule) |
 | Client integration | Scoped API keys, outbound webhooks per client, scheduled report e-mail, logo upload for branded reports |
 | Security | Nonce-based CSP, `APP_ENCRYPTION_KEY` rotation command |
 
