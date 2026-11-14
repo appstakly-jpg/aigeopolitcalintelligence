@@ -12,7 +12,9 @@ import psycopg
 from ..db import execute, fetch_all, fetch_one, jsonb
 from ..log import get_logger
 from ..refdata import COUNTRY_NAMES
+from ..text.events import KINETIC
 from ..text.gazetteer import Gazetteer
+from ..text.normalize import match_form
 from ..text.simhash import jaccard
 from ..text.taxonomy import Taxonomy
 from . import verification
@@ -97,6 +99,51 @@ def _ancestor_ids(gazetteer: Gazetteer, entity_id: str | None) -> set[str]:
     return {entity_id, *(a.id for a in gazetteer.ancestors(e))}
 
 
+# A physical event (attack, clash, explosion, seizure) happens at one place and time. Reports of it are
+# grouped only when they agree on both; recurring attacks (daily interceptions over Riyadh, strikes in Gaza)
+# are separate incidents.
+PHYSICAL_EVENT_MAX_GAP = timedelta(hours=24)
+# Places at most this imprecise (cities, ports, facilities, a narrow strait) locate an event; countries and
+# seas do not, so reports placed only there also need similar headlines.
+PRECISE_PLACE_KM = 150
+SAME_STORY_HEADLINES = 0.35
+_HEADLINE_STOPWORDS = frozenset({"the", "a", "an", "of", "in", "on", "at", "to", "for", "by", "with", "from", "and",
+                                 "or", "as", "is", "are", "was", "were", "be", "been", "after", "over", "says", "said",
+                                 "say", "its", "it", "that", "this", "into", "amid", "has", "have", "new", "في", "من",
+                                 "على", "الى", "عن", "مع", "بعد"})
+
+
+def headline_similarity(a: str, b: str) -> float:
+    """Share of content words two headlines have in common (plural 's' ignored)."""
+    def words(text: str) -> set[str]:
+        return {t[:-1] if len(t) > 4 and t.endswith("s") and t.isascii() else t
+                for t in match_form(text).split() if t not in _HEADLINE_STOPWORDS and len(t) > 1}
+    wa, wb = words(a), words(b)
+    return len(wa & wb) / len(wa | wb) if wa and wb else 0.0
+
+
+def _precise(entity) -> bool:
+    return entity is not None and entity.kind != "country" and (entity.precision_km or 0) <= PRECISE_PLACE_KM
+
+
+def location_conflict(ex_entity_id: str | None, inc_entity_id: str | None, gazetteer: Gazetteer) -> str | None:
+    """Why two resolved places cannot be the place of one physical event, or None."""
+    if not ex_entity_id or not inc_entity_id or ex_entity_id == inc_entity_id:
+        return None
+    if ex_entity_id in _ancestor_ids(gazetteer, inc_entity_id) or inc_entity_id in _ancestor_ids(gazetteer, ex_entity_id):
+        return None
+    e1, e2 = gazetteer.entities.get(ex_entity_id), gazetteer.entities.get(inc_entity_id)
+    if e1 is None or e2 is None:
+        return None
+    if e1.country_code and e2.country_code and e1.country_code != e2.country_code:
+        return f"{e1.name} and {e2.name} are in different countries"
+    if _precise(e1) and _precise(e2) and None not in (e1.lat, e1.lon, e2.lat, e2.lon):
+        d = haversine_km(e1.lat, e1.lon, e2.lat, e2.lon)
+        if d > 100 + (e1.precision_km or 0) + (e2.precision_km or 0):
+            return f"{e1.name} and {e2.name} are {d:.0f} km apart"
+    return None
+
+
 def match_score(ex: Extraction, inc: dict, gazetteer: Gazetteer, ex_time: datetime | None) -> tuple[float, list[str]]:
     reasons: list[str] = []
     a, b = set(ex.categories), set(inc["categories"] or [])
@@ -104,6 +151,10 @@ def match_score(ex: Extraction, inc: dict, gazetteer: Gazetteer, ex_time: dateti
     if a and b:
         if ex.primary_category == inc["primary_category"]:
             cat = 0.35
+        elif ex.primary_category in b or inc["primary_category"] in a:
+            # "Houthis claim missile attack on ship" (drone/missile, maritime) and "Vessel reports
+            # projectile strike" (maritime) describe one event from two angles.
+            cat = 0.30
         else:
             cat = 0.35 * len(a & b) / len(a | b)
     if cat:
@@ -141,7 +192,43 @@ def match_score(ex: Extraction, inc: dict, gazetteer: Gazetteer, ex_time: dateti
     if ex.stance in ("denial", "correction", "retraction") and loc >= 0.12 and cat > 0:
         bonus += 0.1  # denials/corrections reuse fewer of the original keywords
         reasons.append("denial/correction bonus 0.10")
-    return round(cat + loc + title_score + actor + bonus, 3), reasons
+    score = round(cat + loc + title_score + actor + bonus, 3)
+    if ex.primary_category in KINETIC or inc["primary_category"] in KINETIC:
+        veto = _physical_event_veto(ex, inc, gazetteer, ex_time, cat, t_ex)
+        if veto:
+            return 0.0, [*reasons, f"not the same event: {veto}"]
+    return score, reasons
+
+
+def _physical_event_veto(ex: Extraction, inc: dict, gazetteer: Gazetteer, ex_time: datetime | None, cat: float,
+                         headline: str | None) -> str | None:
+    """Why a report cannot describe the same physical event as the incident, or None."""
+    conflict = location_conflict(ex.location.get("entity_id"), inc["geo_entity_id"], gazetteer)
+    if conflict:
+        return conflict
+    t1 = ex.occurred_at or ex_time
+    t2 = inc.get("occurred_at") or inc.get("first_reported_at") or inc.get("created_at")
+    gap = abs(t1 - t2) if t1 and t2 else None
+    if gap is not None and gap > PHYSICAL_EVENT_MAX_GAP:
+        return f"events {gap.total_seconds() / 3600:.0f} h apart"
+    dated = ("exact", "hour", "day")
+    if (ex.occurred_at and inc.get("occurred_at") and ex.occurred_precision in dated
+            and inc.get("occurred_at_precision") in dated and ex.occurred_at.date() != inc["occurred_at"].date()):
+        return f"reported for different days ({inc['occurred_at'].date()} and {ex.occurred_at.date()})"
+    e1 = gazetteer.entities.get(ex.location.get("entity_id") or "")
+    e2 = gazetteer.entities.get(inc["geo_entity_id"] or "")
+    if _precise(e1) and _precise(e2):
+        return None
+    sim = headline_similarity(headline or "", inc["title"] or "")
+    if sim >= SAME_STORY_HEADLINES:
+        return None
+    # A sea or strait reported twice within hours with matching event types (a ship attack reported by the
+    # attacker and by the vessel) is accepted; a country is too large for that.
+    if (e1 is not None and e1 == e2 and e1.kind != "country" and cat >= 0.30
+            and gap is not None and gap <= timedelta(hours=6)):
+        return None
+    where = e1.name if e1 is not None else "no precise place"
+    return f"only a broad location ({where}) and different headlines"
 
 
 def find_match(conn: psycopg.Connection, tenant_id: str, ex: Extraction, ex_time: datetime | None,

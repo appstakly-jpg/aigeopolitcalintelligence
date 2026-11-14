@@ -6,11 +6,12 @@ incident, a place that was only a topic chosen as the location, an event abroad 
 The texts are short headlines and first sentences, kept to what each case needs.
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
 from gccintel.agents.extraction import rule_extract
+from gccintel.agents.incidents import headline_similarity, match_score
 from gccintel.refdata import default_gazetteer, default_taxonomy
 from gccintel.text import events
 from gccintel.text.normalize import clean_text, match_form
@@ -124,3 +125,79 @@ def test_ceasefire_violation_is_a_clash_not_a_diplomatic_development():
     assert "geopolitical_development" not in ex.categories
     ex = extract("Saudi Arabia and Iran agree to a ceasefire agreement in Yemen talks")
     assert ex.primary_category == "geopolitical_development"
+
+
+# ---------------------------------------------------------------------------
+# Grouping reports into incidents
+# ---------------------------------------------------------------------------
+def report(title: str, excerpt: str, published: datetime, language: str = "en"):
+    return rule_extract(title=title, excerpt=excerpt, published_at=published, language=language,
+                        source_type="news_media", gazetteer=GAZ, taxonomy=TAX)
+
+
+def incident_from(ex, published: datetime) -> dict:
+    loc = ex.location
+    return {"categories": ex.categories, "primary_category": ex.primary_category, "geo_entity_id": loc["entity_id"],
+            "lat": loc["lat"], "lon": loc["lon"], "country_code": loc["country_code"], "title": ex.title_en or ex.title,
+            "actors": ex.actors, "last_reported_at": published, "created_at": published, "first_reported_at": published,
+            "occurred_at": ex.occurred_at, "occurred_at_precision": ex.occurred_precision}
+
+
+def score(first: tuple, second: tuple) -> tuple[float, list[str]]:
+    a = report(*first)
+    b = report(*second)
+    return match_score(b, incident_from(a, first[2]), GAZ, second[2])
+
+
+T0 = datetime(2026, 11, 11, 12, 0, tzinfo=UTC)
+
+
+def test_interceptions_over_different_cities_are_separate_incidents():
+    s, reasons = score(("Coalition Says It Intercepted 3 Houthi Cruise Missiles Targeting Riyadh", "", T0),
+                       ("Coalition: Two Houthi UAVs Intercepted, Destroyed in Makkah, Southern Regions", "",
+                        T0 + timedelta(hours=3)))
+    assert s == 0.0 and "km apart" in reasons[-1]
+
+
+def test_strikes_reported_for_different_days_are_separate_incidents():
+    s, reasons = score(
+        ("Israeli Occupation Forces Kill Palestinian, Injure Others in Gaza as Ceasefire Violations Continue",
+         "A Palestinian was killed and others were injured in an Israeli attack on a home in Gaza City on Wednesday.",
+         T0),
+        ("Three Palestinians Killed, Others Wounded in Israeli Bombardment of Gaza Strip",
+         "Three Palestinians were killed and several others wounded on Thursday in new airstrikes and shelling.",
+         T0 + timedelta(hours=23)))
+    assert s == 0.0 and "different days" in reasons[-1]
+
+
+def test_country_level_report_needs_a_matching_headline():
+    s, reasons = score(("Yemeni army reports 943 strikes on Houthi positions as ballistic missiles target Aden", "", T0),
+                       ("Houthis say Saudi-led coalition forces target Saada, Razih in Yemen", "",
+                        T0 + timedelta(hours=13)))
+    assert s == 0.0 and "broad location" in reasons[-1]
+
+
+def test_reports_of_one_event_in_two_languages_are_grouped():
+    s, _ = score(("Iran says 2 oil tankers strike mines, catch fire in Strait of Hormuz", "", T0),
+                 ("«الحرس الثوري» يعلن اصطدام ناقلتي نفط بألغام في مضيق هرمز", "", T0 + timedelta(hours=8), "ar"))
+    assert s >= 0.6
+
+
+def test_attack_claim_and_vessel_report_at_sea_are_grouped():
+    # The synthetic evaluation pair e15/e16 (not a live headline): one ship attack seen by the attacker and the
+    # vessel. A sea is too large to group reports hours apart without similar headlines.
+    claim = ("Houthi forces claim missile attack on ship in Red Sea",
+             "Houthi forces claimed a missile attack on a merchant ship in the Red Sea, according to a statement.")
+    vessel = ("Merchant vessel reports projectile strike in Red Sea",
+              "A merchant vessel reported being struck by a projectile in the Red Sea causing minor damage.")
+    s, _ = score((*claim, T0), (*vessel, T0 + timedelta(minutes=10)))
+    assert s >= 0.6
+    s, _ = score((*claim, T0), (*vessel, T0 + timedelta(hours=9)))
+    assert s == 0.0
+
+
+def test_headline_similarity_ignores_function_words_and_plurals():
+    assert headline_similarity("Iran says three tankers hit by mines in Hormuz catch fire",
+                               "Iran says 2 oil tankers strike mines, catch fire in Strait of Hormuz") >= 0.35
+    assert headline_similarity("Houthis say Saudi-led coalition forces target Saada, Razih in Yemen",
+                               "Yemen's government-aligned forces repel Houthi attack") < 0.35
