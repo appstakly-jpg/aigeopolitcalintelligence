@@ -24,8 +24,8 @@ export function IncidentTable({ rows, labels, tz, locale, showReview = false }:
       <tbody>
         {rows.map((r) => (
           <tr key={r.id} className="hover:bg-muted/50">
-            <Td className="max-w-md">
-              <Link href={`/incidents/${r.id}`} className="font-medium hover:underline">{r.title}</Link>
+            <Td className="min-w-[13rem] max-w-md">
+              <Link href={`/incidents/${r.id}`} dir="auto" className="font-medium hover:underline">{r.title}</Link>
               <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
                 <span>{r.ref} · v{r.version}</span>
                 <DemoTag show={r.is_demo} />

@@ -158,28 +158,34 @@ def build_content(conn: psycopg.Connection, tenant_id: str, report_type: str, st
     ev = evidence_for(conn, [str(i["id"]) for i in incidents])
     book = CitationBook()
     cites: dict[str, list[int]] = {}
-    for inc in incidents:
-        cites[str(inc["id"])] = [book.cite(e, inc) for e in pick_evidence(ev.get(str(inc["id"]), []))]
+
+    def cite_nums(inc: dict) -> list[int]:
+        """Citations are booked when an incident is first written into the brief, so they are numbered in
+        reading order and the list holds no source the text does not cite."""
+        key = str(inc["id"])
+        if key not in cites:
+            cites[key] = [book.cite(e, inc) for e in pick_evidence(ev.get(key, []))]
+        return cites[key]
 
     def item(inc: dict) -> dict:
         return {"incident_id": str(inc["id"]), "incident_ref": inc["ref"], "severity": inc["severity"],
                 "verification": inc["verification_status"], "review_status": inc["review_status"],
                 "country_code": inc["country_code"], "is_demo": inc["is_demo"],
-                "text": incident_text(inc, taxonomy) + " " + _cite_tag(cites[str(inc["id"])])}
+                "text": incident_text(inc, taxonomy) + " " + _cite_tag(cite_nums(inc))}
 
     sections: list[dict] = []
     high = [i for i in incidents if i["severity"] >= 4]
     span = f"{start:%d %b %Y %H:%M} to {end:%d %b %Y %H:%M} UTC"
     if incidents:
-        summary = [{"text": f"{len(incidents)} incident(s) met the inclusion criteria between {span}; {len(high)} at "
+        summary = [{"text": f"{len(incidents)} incident(s) met the inclusion criteria from {span}; {len(high)} at "
                             f"severity 4-5, {sum(1 for i in incidents if i['verification_status'] == 'disputed')} disputed, "
                             f"{sum(1 for i in incidents if i['verification_status'] == 'single_source')} single-source.",
                     "computed": True}]
         for inc in incidents[:3]:
             summary.append({"text": f"{inc['title']} ({_loc(inc)}; {VER_LABEL[inc['verification_status']]}, "
-                                    f"severity {inc['severity']}/5). {_cite_tag(cites[str(inc['id'])])}"})
+                                    f"severity {inc['severity']}/5). {_cite_tag(cite_nums(inc))}"})
     else:
-        summary = [{"text": f"No incidents meeting the inclusion criteria were recorded from monitored sources between "
+        summary = [{"text": f"No incidents meeting the inclusion criteria were recorded from monitored sources from "
                             f"{span}. This reflects monitored-source coverage only, not the absence of events.",
                     "computed": True}]
     sections.append({"key": "executive_summary", "heading": "Executive summary", "paragraphs": summary})
@@ -189,7 +195,10 @@ def build_content(conn: psycopg.Connection, tenant_id: str, report_type: str, st
 
     if report_type in ("daily_gcc", "weekly_outlook", "monthly_assessment", "custom", "breaking"):
         for c in GCC_COUNTRIES:
-            c_inc = [i for i in incidents if i["country_code"] == c or c in (i["affected_countries"] or [])]
+            # Located in this state, or located outside the GCC and affecting it (Houthi launches, Hormuz).
+            # An incident in another GCC state is not repeated here because a report mentions this one.
+            c_inc = [i for i in incidents if i["country_code"] == c
+                     or (i["country_code"] not in GCC_COUNTRIES and c in (i["affected_countries"] or []))]
             sections.append({"key": f"country:{c}", "heading": COUNTRY_NAMES[c], "items": [item(i) for i in c_inc[:6]],
                              "empty": "No qualifying incidents recorded from monitored sources." if not c_inc else None})
         regional = [i for i in incidents if i["country_code"] not in GCC_COUNTRIES]
@@ -210,7 +219,7 @@ def build_content(conn: psycopg.Connection, tenant_id: str, report_type: str, st
     assessment = []
     for d, incs in sorted(by_dim.items(), key=lambda kv: -sum(i["severity"] for i in kv[1]))[:4]:
         countries = Counter(COUNTRY_NAMES.get(i["country_code"] or "", "regional waters") for i in incs)
-        nums = [n for i in incs[:4] for n in cites[str(i["id"])][:2]]
+        nums = [n for i in incs[:4] for n in cite_nums(i)[:2]]
         assessment.append({"text": f"{dims.get(d, d)}: {len(incs)} incident(s), concentrated in "
                                    f"{', '.join(f'{k} ({v})' for k, v in countries.most_common(3))}; highest severity "
                                    f"{max(i['severity'] for i in incs)}/5. {_cite_tag(nums)}"})
@@ -258,9 +267,14 @@ def build_content(conn: psycopg.Connection, tenant_id: str, report_type: str, st
                 watch.append(w)
     sections.append({"key": "watch_indicators", "heading": "Watch indicators", "bullets": watch[:8] or
                      ["No specific indicators; maintain routine monitoring."]})
-    n_sources = fetch_one(conn, "select count(*) as n from sources where tenant_id = %s and enabled", (tenant_id,))["n"]
+    counts = fetch_one(conn, """
+        select count(*) as n, count(*) filter (where license_type = 'review_required') as unreviewed
+        from sources where tenant_id = %s and enabled""", (tenant_id,))
+    n_sources = counts["n"]
+    limited = (f" ({counts['unreviewed']} of them used for headlines, links and short excerpts only until their "
+               "licences are reviewed)") if counts["unreviewed"] else ""
     sections.append({"key": "methodology", "heading": "Methodology note", "paragraphs": [{"computed": True, "text": (
-        f"Compiled from {n_sources} monitored, licence-reviewed sources. Incidents are included only when linked to "
+        f"Compiled from {n_sources} monitored public sources{limited}. Incidents are included only when linked to "
         "stored evidence; unverified incidents are excluded. Verification counts independent origins, not articles: "
         "syndicated copies and same-network reports do not corroborate each other. Official statements are reported "
         "as attributable claims. Severity is computed by a documented rule set and checked by analysts for high-impact "

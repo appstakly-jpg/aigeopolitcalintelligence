@@ -111,6 +111,16 @@ def evaluate_incident(conn: psycopg.Connection, inc: dict, change_type: str, cha
             # even when the corrected incident no longer matches their rule (e.g. a corrected location).
             if not (prior and change_type in ("correction", "retraction")):
                 continue
+        if (prior is not None and prior["status"] == "pending_review" and change_type not in ("correction", "retraction")
+                and inc["version"] > prior["incident_version"]):
+            # Still waiting for a reviewer: keep the queued text in step with the incident (new evidence,
+            # changed counts), so the reviewer approves what will actually be sent.
+            title, body = compose(inc, prior["kind"], settings, changed_fields, evidence)
+            high = inc["severity"] >= int(policy.get("alert_high_impact_min_severity", 4))
+            execute(conn, """update alerts set title = %s, body = %s, incident_version = %s,
+                             impact = case when %s then 'high' else impact end where id = %s""",
+                    (title, body, inc["version"], high, prior["id"]))
+            continue
         if prior is None:
             kind = "new"
         elif change_type in ("correction", "retraction"):
@@ -134,7 +144,16 @@ def evaluate_incident(conn: psycopg.Connection, inc: dict, change_type: str, cha
                     (title, body, inc["version"], impact,
                      f"content refreshed to incident version {inc['version']} ({kind}) while awaiting review", prior["id"]))
             continue
-        if impact == "high" and policy.get("high_impact_requires_review", True):
+        first_seen = inc.get("first_reported_at") or inc.get("created_at")
+        max_age = int(policy.get("alert_max_age_hours", 24))
+        if kind == "new" and first_seen and now - first_seen > timedelta(hours=max_age):
+            # Backlog (a new source's first fetch, a reprocessing run): recorded once, never sent as breaking news.
+            if fetch_one(conn, """select 1 from alerts where rule_id = %s and incident_id = %s and status = 'suppressed'
+                                  and status_reason like 'not sent: first reported more than%%' limit 1""",
+                         (rule["id"], inc["id"])):
+                continue
+            status, reason = "suppressed", f"not sent: first reported more than {max_age} h ago (backlog)"
+        elif impact == "high" and policy.get("high_impact_requires_review", True):
             status, reason = "pending_review", "high-impact alert requires human review before sending"
         elif impact == "standard" and not policy.get("auto_send_standard_alerts", True):
             status, reason = "pending_review", "tenant policy requires review of all alerts"

@@ -357,3 +357,25 @@ def test_removing_analyst_overrides_restores_values_from_creation(conn, tenant, 
     for field in ("title", "geo_entity_id", "location_name", "lat", "lon", "geo_precision", "geo_source", "country_code",
                   "casualties_killed", "casualties_injured"):
         assert restored[field] == inc[field], field
+
+
+def test_backlog_incidents_are_recorded_but_not_alerted(conn, tenant, settings, web, fetcher):
+    # A new organisation's first fetch returns a week of items: incidents are created, but only those first
+    # reported within the alert age limit (24 h by default) may alert.
+    (s1,) = _sources(conn, tenant, n=1)
+    analyst = make_user(conn, tenant, "analyst")
+    add_rule(conn, tenant, analyst, name="Kuwait", countries=["KW"], min_severity=1, throttle_minutes=0)
+    web.set(s1["url"], rss([
+        {"title": "Substation fire causes power outage in parts of Kuwait City",
+         "body": "A fire at a substation caused a power outage in Kuwait City, the ministry said.",
+         "link": "https://w1.test/old", "minutes_ago": 3 * 24 * 60},
+        {"title": "Drone intercepted over Kuwait City, army says",
+         "body": "The Kuwaiti army said air defences intercepted a drone over Kuwait City on Saturday.",
+         "link": "https://w1.test/new", "minutes_ago": 30}]))
+    _, mail = _run(conn, tenant, settings, fetcher)
+    rows = fetch_all(conn, """select i.title, a.status, a.status_reason from alerts a join incidents i on i.id = a.incident_id
+                              where a.tenant_id = %s order by i.first_reported_at""", (tenant,))
+    assert len(rows) == 2
+    assert rows[0]["status"] == "suppressed" and "backlog" in rows[0]["status_reason"]
+    assert rows[1]["status"] in ("approved", "sent")
+    assert len(mail.sent) == 1 and "Drone intercepted" in mail.sent[0][1].subject + mail.sent[0][1].text

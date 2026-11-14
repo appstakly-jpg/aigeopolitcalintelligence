@@ -35,7 +35,7 @@ export default async function SourcesPage() {
   return (
     <>
       <PageHeader title={t(s.locale, "nav.sources")}
-        description="Only approved, licence-reviewed public feeds are collected. The collector honours robots.txt, rate limits and each source's usage policy, and never logs in, bypasses paywalls or reads private accounts. Reliability is graded A–F (Admiralty scale) with a written rationale."
+        description="Only approved public feeds are collected; a feed whose licence has not been reviewed is limited to headlines, links and short excerpts. The collector honours robots.txt, rate limits and each source's usage policy, and never logs in, bypasses paywalls or reads private accounts. Reliability is graded A–F (Admiralty scale) with a written rationale."
         actions={can.staff(s.role) ? (
           <>
             <ActionForm action={sourceJobAction} submit="Run ingestion now" variant="outline" className="flex"><input type="hidden" name="op" value="run_pipeline" /></ActionForm>

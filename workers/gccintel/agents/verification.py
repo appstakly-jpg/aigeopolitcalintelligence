@@ -73,7 +73,8 @@ def assess(evidence: list[Evidence], *, min_independent: int = 2, analyst_confir
     copies = len(asserting) - len(origins)
     if copies > 0:
         notes.append(f"{len(asserting)} supporting reports trace back to {len(origins)} independent origin(s); "
-                     f"{copies} are copies or same-network reports and do not count as corroboration.")
+                     + ("1 is a copy or same-network report and does not" if copies == 1 else
+                        f"{copies} are copies or same-network reports and do not") + " count as corroboration.")
     if official:
         notes.append("Official statements (" + ", ".join(official) + ") are attributable claims, not independent verification.")
     if any(e.injection_flags for e in evidence):

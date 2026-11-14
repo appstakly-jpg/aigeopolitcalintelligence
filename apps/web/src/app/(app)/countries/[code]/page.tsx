@@ -30,7 +30,15 @@ export default async function CountryPage({ params, searchParams }: { params: Pr
     const [center] = await tx<{ lat: number; lon: number }[]>`select lat, lon from geo_entities where kind = 'country' and country_code = ${code} limit 1`;
     const sources = await tx<{ n: number }[]>`
       select count(*)::int as n from sources where enabled and (country_focus = '{}' or ${code} = any(country_focus))`;
-    return { labels, rows, total, risk, center, sources: sources[0].n };
+    // Official travel advisories are stored like articles but are not incidents: show the latest one per
+    // source (country feeds such as FCDO, or the US State Department's all-country feed by title).
+    const advisories = await tx<{ id: string; title: string; excerpt: string | null; url: string; published_at: Date | null; source_name: string; publisher: string | null }[]>`
+      select distinct on (s.id) a.id, a.title, a.excerpt, a.url, a.published_at, s.name as source_name, s.publisher
+      from articles a join sources s on s.id = a.source_id
+      where s.config->>'content_kind' = 'travel_advisory' and s.status = 'approved'
+        and (${code} = any(s.country_focus) or a.title ilike ${COUNTRY_NAMES[code].en + " - %"})
+      order by s.id, a.published_at desc nulls last`;
+    return { labels, rows, total, risk, center, sources: sources[0].n, advisories };
   });
   const { points, unlocated } = toPoints(d.rows);
   const latest = d.risk.reduce<Date | null>((m, r) => (!m || r.computed_at > m ? r.computed_at : m), null);
@@ -55,6 +63,23 @@ export default async function CountryPage({ params, searchParams }: { params: Pr
           </CardBody>
         </Card>
       </div>
+      {d.advisories.length > 0 && (
+        <Card className="mt-4" id="advisories">
+          <CardHeader title="Official travel advisories"
+            description="Latest published guidance from each government source, linked to the original. Advisories are attributable government positions: they are not incidents and do not feed the risk indices." />
+          <CardBody>
+            <ul className="space-y-3">
+              {d.advisories.map((a) => (
+                <li key={a.id} className="text-sm">
+                  <a href={a.url} target="_blank" rel="noopener noreferrer nofollow" className="font-medium text-primary hover:underline">{a.title}</a>
+                  <span className="text-muted-foreground"> · {a.publisher ?? a.source_name} · updated {fmtDateTime(a.published_at, tz, s.locale)}</span>
+                  {a.excerpt && <p className="mt-0.5 text-muted-foreground">{a.excerpt}</p>}
+                </li>
+              ))}
+            </ul>
+          </CardBody>
+        </Card>
+      )}
       <Card className="mt-4">
         <CardHeader title="Incidents" />
         <IncidentTable rows={d.rows} labels={d.labels} tz={tz} locale={s.locale} showReview={can.staff(s.role)} />
