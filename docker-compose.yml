@@ -1,0 +1,158 @@
+# GCC geopolitical intelligence platform: local and single-host deployment.
+#
+#   ./scripts/init-env.sh            # writes .env with generated secrets (add --demo for the demo)
+#   docker compose up -d --build     # db, migrations, web, worker, scheduler
+#   docker compose --profile demo up -d --build
+#                                    # adds SYNTHETIC demo feeds, the demo organisation and a mail catcher
+#
+# See docs/deployment.md for production notes (managed Postgres or Supabase, TLS, backups, scaling).
+
+name: gccintel
+
+x-db-url: &db-url postgresql://gccintel:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env (scripts/init-env.sh)}@db:5432/gccintel
+
+x-worker-env: &worker-env
+  DATABASE_URL: *db-url
+  APP_ENV: ${APP_ENV:-production}
+  APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
+  APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:?set APP_ENCRYPTION_KEY in .env (scripts/init-env.sh)}
+  DEMO_MODE: ${DEMO_MODE:-false}
+  DEMO_PASSWORD: ${DEMO_PASSWORD:-}
+  ALLOW_PRIVATE_NETWORK_FETCH: ${ALLOW_PRIVATE_NETWORK_FETCH:-false}
+  HTTP_USER_AGENT: ${HTTP_USER_AGENT:-GCCIntelBot/0.1 (+public-source monitoring; respects robots.txt)}
+  LLM_PROVIDER: ${LLM_PROVIDER:-}
+  LLM_MODEL: ${LLM_MODEL:-}
+  LLM_DAILY_BUDGET_USD: ${LLM_DAILY_BUDGET_USD:-10}
+  LLM_MAX_CALLS_PER_RUN: ${LLM_MAX_CALLS_PER_RUN:-200}
+  LLM_ANTHROPIC_BASE_URL: ${LLM_ANTHROPIC_BASE_URL:-}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OPENAI_MODEL: ${OPENAI_MODEL:-}
+  GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+  GEMINI_MODEL: ${GEMINI_MODEL:-}
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_USERNAME: ${SMTP_USERNAME:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  SMTP_FROM: ${SMTP_FROM:-alerts@localhost}
+  SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
+  TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+  PDF_EXPORT_ENABLED: ${PDF_EXPORT_ENABLED:-false}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  LOG_JSON: "true"
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: gccintel
+      POSTGRES_USER: gccintel
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env (scripts/init-env.sh)}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gccintel -d gccintel"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    # Not published by default. To reach it from the host: ports: ["127.0.0.1:5432:5432"]
+
+  migrate:
+    build:
+      context: .
+      dockerfile: workers/Dockerfile
+      args:
+        EXTRAS: ${WORKER_EXTRAS:-llm}
+        WITH_CHROMIUM: ${WORKER_WITH_CHROMIUM:-false}
+    image: gccintel-workers:local
+    command: ["sh", "-c", "gccintel migrate && gccintel seed"]
+    environment: *worker-env
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  worker:
+    image: gccintel-workers:local
+    command: ["gccintel", "worker"]
+    environment: *worker-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  scheduler:
+    image: gccintel-workers:local
+    command: ["gccintel", "scheduler", "--interval", "${SCHEDULER_INTERVAL_SECONDS:-60}"]
+    environment: *worker-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  web:
+    build:
+      context: apps/web
+      args:
+        NEXT_PUBLIC_MAP_STYLE_URL: ${NEXT_PUBLIC_MAP_STYLE_URL:-}
+    image: gccintel-web:local
+    environment:
+      DATABASE_URL: *db-url
+      DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-10}
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env (scripts/init-env.sh)}
+      APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:?set APP_ENCRYPTION_KEY in .env (scripts/init-env.sh)}
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
+      SECURE_COOKIES: ${SECURE_COOKIES:-true}
+      AUTH_PROVIDER: ${AUTH_PROVIDER:-local}
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-}
+      DEMO_MODE: ${DEMO_MODE:-false}
+      BILLING_MODE: ${BILLING_MODE:-test}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      LLM_ANTHROPIC_BASE_URL: ${LLM_ANTHROPIC_BASE_URL:-}
+      LLM_MODEL_CHAT: ${LLM_MODEL_CHAT:-}
+      LLM_DAILY_BUDGET_USD: ${LLM_DAILY_BUDGET_USD:-10}
+    ports:
+      - "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-3000}:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------- demo profile
+  # SYNTHETIC feeds only. Stage 2 (denials, corrections, follow-ups) is released automatically after
+  # DEMO_STAGE2_AFTER_SECONDS, or at once with: docker compose exec demo-feeds gccintel demo-advance
+  demo-feeds:
+    image: gccintel-workers:local
+    profiles: [demo]
+    command: ["gccintel", "demo-feeds", "--host", "0.0.0.0", "--port", "8088", "--base-url", "http://demo-feeds:8088",
+              "--stage", "1", "--auto-advance", "${DEMO_STAGE2_AFTER_SECONDS:-600}"]
+    environment:
+      DEMO_MODE: "true"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  demo-setup:
+    image: gccintel-workers:local
+    profiles: [demo]
+    command: ["gccintel", "demo-setup", "--feed-base-url", "http://demo-feeds:8088"]
+    environment: *worker-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      demo-feeds:
+        condition: service_started
+    restart: "no"
+
+  # Catches alert emails (web UI on http://localhost:8025). Use real SMTP settings in production.
+  mailpit:
+    image: axllent/mailpit:v1.27
+    profiles: [demo, mail]
+    ports:
+      - "127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025"
+    restart: unless-stopped
+
+volumes:
+  db-data:

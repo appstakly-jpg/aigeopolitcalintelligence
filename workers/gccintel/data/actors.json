@@ -1,0 +1,27 @@
+{
+  "_comment": "Organisational actors only. The platform does not profile private individuals.",
+  "actors": [
+    {"id": "org:houthis", "name": "Houthis (Ansar Allah)", "name_ar": "الحوثيون", "aliases": ["Houthi", "Houthis", "Ansar Allah", "Ansarallah", "الحوثي", "أنصار الله", "جماعة الحوثي"], "actor_type": "non_state_armed_group", "country_code": "YE"},
+    {"id": "org:irgc", "name": "Islamic Revolutionary Guard Corps", "name_ar": "الحرس الثوري الإيراني", "aliases": ["IRGC", "Revolutionary Guards", "Revolutionary Guard", "الحرس الثوري"], "actor_type": "military", "country_code": "IR"},
+    {"id": "org:hezbollah", "name": "Hezbollah", "name_ar": "حزب الله", "aliases": ["Hizbollah", "Hizballah"], "actor_type": "non_state_armed_group", "country_code": "LB"},
+    {"id": "org:hamas", "name": "Hamas", "name_ar": "حماس", "aliases": ["حركة حماس"], "actor_type": "non_state_armed_group", "country_code": "PS"},
+    {"id": "org:isis", "name": "Islamic State (ISIS)", "name_ar": "تنظيم الدولة الإسلامية", "aliases": ["ISIS", "ISIL", "Islamic State", "Daesh", "داعش", "تنظيم الدولة"], "actor_type": "non_state_armed_group", "country_code": null},
+    {"id": "org:aqap", "name": "Al-Qaeda in the Arabian Peninsula", "name_ar": "تنظيم القاعدة في جزيرة العرب", "aliases": ["AQAP", "القاعدة في جزيرة العرب"], "actor_type": "non_state_armed_group", "country_code": "YE"},
+    {"id": "org:al-shabaab", "name": "Al-Shabaab", "name_ar": "حركة الشباب", "aliases": ["al-Shabab", "Al Shabaab"], "actor_type": "non_state_armed_group", "country_code": "SO"},
+    {"id": "org:pmf", "name": "Popular Mobilization Forces", "name_ar": "الحشد الشعبي", "aliases": ["PMF", "PMU", "Hashd al-Shaabi", "Popular Mobilisation Forces"], "actor_type": "security_force", "country_code": "IQ"},
+    {"id": "org:coalition-yemen", "name": "Saudi-led coalition in Yemen", "name_ar": "تحالف دعم الشرعية في اليمن", "aliases": ["Saudi-led coalition", "Arab coalition", "التحالف العربي", "تحالف دعم الشرعية"], "actor_type": "coalition", "country_code": "SA"},
+    {"id": "org:centcom", "name": "US Central Command", "name_ar": "القيادة المركزية الأمريكية", "aliases": ["CENTCOM", "U.S. Central Command"], "actor_type": "military", "country_code": "US"},
+    {"id": "org:ukmto", "name": "UK Maritime Trade Operations", "name_ar": "هيئة عمليات التجارة البحرية البريطانية", "aliases": ["UKMTO"], "actor_type": "government_body", "country_code": "GB"},
+    {"id": "org:aspides", "name": "EU Operation Aspides", "name_ar": "عملية أسبيدس الأوروبية", "aliases": ["Aspides", "EUNAVFOR Aspides"], "actor_type": "coalition", "country_code": null},
+    {"id": "org:gcc", "name": "Gulf Cooperation Council", "name_ar": "مجلس التعاون لدول الخليج العربية", "aliases": ["GCC", "مجلس التعاون الخليجي", "مجلس التعاون"], "actor_type": "intl_org", "country_code": null},
+    {"id": "org:arab-league", "name": "Arab League", "name_ar": "جامعة الدول العربية", "aliases": ["League of Arab States", "الجامعة العربية"], "actor_type": "intl_org", "country_code": null},
+    {"id": "org:un", "name": "United Nations", "name_ar": "الأمم المتحدة", "aliases": ["UN", "U.N.", "UN Security Council", "Security Council", "مجلس الأمن"], "actor_type": "intl_org", "country_code": null},
+    {"id": "org:iaea", "name": "International Atomic Energy Agency", "name_ar": "الوكالة الدولية للطاقة الذرية", "aliases": ["IAEA"], "actor_type": "intl_org", "country_code": null},
+    {"id": "org:opec", "name": "OPEC", "name_ar": "أوبك", "aliases": ["OPEC+", "أوبك+"], "actor_type": "intl_org", "country_code": null},
+    {"id": "org:aramco", "name": "Saudi Aramco", "name_ar": "أرامكو السعودية", "aliases": ["Aramco", "أرامكو"], "actor_type": "company", "country_code": "SA"},
+    {"id": "org:adnoc", "name": "ADNOC", "name_ar": "أدنوك", "aliases": ["Abu Dhabi National Oil Company"], "actor_type": "company", "country_code": "AE"},
+    {"id": "org:qatarenergy", "name": "QatarEnergy", "name_ar": "قطر للطاقة", "aliases": ["Qatar Energy"], "actor_type": "company", "country_code": "QA"},
+    {"id": "org:kpc", "name": "Kuwait Petroleum Corporation", "name_ar": "مؤسسة البترول الكويتية", "aliases": ["KPC"], "actor_type": "company", "country_code": "KW"},
+    {"id": "org:bapco", "name": "Bapco Energies", "name_ar": "بابكو", "aliases": ["Bapco"], "actor_type": "company", "country_code": "BH"}
+  ]
+}

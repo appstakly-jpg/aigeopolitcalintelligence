@@ -1,0 +1,2002 @@
+{
+ "_comment": "Gazetteer seed. Coordinates are approximate representative points compiled from public reference gazetteers (GeoNames / Natural Earth conventions), rounded to ~0.01 degrees. precision_km is the stated uncertainty radius. Verify against an authoritative gazetteer before any operational use. No admin1 polygons are included in M1.",
+ "coord_source": "public-gazetteer-approx (GeoNames/Natural Earth conventions), compiled 2026-11",
+ "entities": [
+  {
+   "id": "country:sa",
+   "kind": "country",
+   "name": "Saudi Arabia",
+   "name_ar": "السعودية",
+   "aliases": [
+    "Kingdom of Saudi Arabia",
+    "KSA",
+    "Saudi",
+    "المملكة العربية السعودية"
+   ],
+   "country_code": "SA",
+   "lat": 23.9,
+   "lon": 45.1,
+   "precision_km": 800,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "country:ae",
+   "kind": "country",
+   "name": "United Arab Emirates",
+   "name_ar": "الإمارات",
+   "aliases": [
+    "UAE",
+    "Emirates",
+    "the Emirates",
+    "الإمارات العربية المتحدة",
+    "دولة الإمارات"
+   ],
+   "country_code": "AE",
+   "lat": 23.9,
+   "lon": 54.3,
+   "precision_km": 200,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "country:qa",
+   "kind": "country",
+   "name": "Qatar",
+   "name_ar": "قطر",
+   "aliases": [
+    "State of Qatar",
+    "دولة قطر"
+   ],
+   "country_code": "QA",
+   "lat": 25.3,
+   "lon": 51.2,
+   "precision_km": 80,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "country:kw",
+   "kind": "country",
+   "name": "Kuwait",
+   "name_ar": "الكويت",
+   "aliases": [
+    "State of Kuwait",
+    "دولة الكويت"
+   ],
+   "country_code": "KW",
+   "lat": 29.3,
+   "lon": 47.6,
+   "precision_km": 100,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "country:bh",
+   "kind": "country",
+   "name": "Bahrain",
+   "name_ar": "البحرين",
+   "aliases": [
+    "Kingdom of Bahrain",
+    "مملكة البحرين"
+   ],
+   "country_code": "BH",
+   "lat": 26.03,
+   "lon": 50.55,
+   "precision_km": 25,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "country:om",
+   "kind": "country",
+   "name": "Oman",
+   "name_ar": "عمان",
+   "aliases": [
+    "Sultanate of Oman",
+    "سلطنة عمان"
+   ],
+   "country_code": "OM",
+   "lat": 21.5,
+   "lon": 57.0,
+   "precision_km": 500,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "country:ir",
+   "kind": "country",
+   "name": "Iran",
+   "name_ar": "إيران",
+   "aliases": [
+    "Islamic Republic of Iran",
+    "Iranian",
+    "الجمهورية الإسلامية",
+    "الإيرانية",
+    "الإيراني"
+   ],
+   "country_code": "IR",
+   "lat": 32.4,
+   "lon": 53.7,
+   "precision_km": 1000,
+   "is_gcc": false,
+   "region": "iran"
+  },
+  {
+   "id": "country:iq",
+   "kind": "country",
+   "name": "Iraq",
+   "name_ar": "العراق",
+   "aliases": [
+    "Iraqi",
+    "العراقية",
+    "العراقي"
+   ],
+   "country_code": "IQ",
+   "lat": 33.2,
+   "lon": 43.7,
+   "precision_km": 500,
+   "is_gcc": false,
+   "region": "iraq"
+  },
+  {
+   "id": "country:ye",
+   "kind": "country",
+   "name": "Yemen",
+   "name_ar": "اليمن",
+   "aliases": [
+    "Yemeni",
+    "اليمنية",
+    "اليمني"
+   ],
+   "country_code": "YE",
+   "lat": 15.6,
+   "lon": 48.0,
+   "precision_km": 500,
+   "is_gcc": false,
+   "region": "yemen"
+  },
+  {
+   "id": "country:il",
+   "kind": "country",
+   "name": "Israel",
+   "name_ar": "إسرائيل",
+   "aliases": [
+    "Israeli",
+    "الإسرائيلي",
+    "الإسرائيلية"
+   ],
+   "country_code": "IL",
+   "lat": 31.0,
+   "lon": 34.9,
+   "precision_km": 150,
+   "is_gcc": false,
+   "region": "israel_palestine"
+  },
+  {
+   "id": "country:ps",
+   "kind": "country",
+   "name": "Palestinian Territories",
+   "name_ar": "فلسطين",
+   "aliases": [
+    "Palestine",
+    "West Bank",
+    "الضفة الغربية",
+    "الأراضي الفلسطينية"
+   ],
+   "country_code": "PS",
+   "lat": 31.9,
+   "lon": 35.2,
+   "precision_km": 100,
+   "is_gcc": false,
+   "region": "israel_palestine"
+  },
+  {
+   "id": "country:jo",
+   "kind": "country",
+   "name": "Jordan",
+   "name_ar": "الأردن",
+   "aliases": [
+    "Jordanian",
+    "الأردنية",
+    "الأردني"
+   ],
+   "country_code": "JO",
+   "lat": 31.2,
+   "lon": 36.5,
+   "precision_km": 250,
+   "is_gcc": false,
+   "region": "levant"
+  },
+  {
+   "id": "country:lb",
+   "kind": "country",
+   "name": "Lebanon",
+   "name_ar": "لبنان",
+   "aliases": [
+    "Lebanese",
+    "اللبنانية",
+    "اللبناني"
+   ],
+   "country_code": "LB",
+   "lat": 33.9,
+   "lon": 35.9,
+   "precision_km": 80,
+   "is_gcc": false,
+   "region": "levant"
+  },
+  {
+   "id": "country:sy",
+   "kind": "country",
+   "name": "Syria",
+   "name_ar": "سوريا",
+   "aliases": [
+    "Syrian",
+    "سورية",
+    "السورية",
+    "السوري"
+   ],
+   "country_code": "SY",
+   "lat": 35.0,
+   "lon": 38.5,
+   "precision_km": 350,
+   "is_gcc": false,
+   "region": "levant"
+  },
+  {
+   "id": "country:eg",
+   "kind": "country",
+   "name": "Egypt",
+   "name_ar": "مصر",
+   "aliases": [
+    "Egyptian",
+    "المصرية",
+    "المصري"
+   ],
+   "country_code": "EG",
+   "lat": 26.8,
+   "lon": 30.8,
+   "precision_km": 700,
+   "is_gcc": false,
+   "region": "egypt"
+  },
+  {
+   "id": "country:dj",
+   "kind": "country",
+   "name": "Djibouti",
+   "name_ar": "جيبوتي",
+   "aliases": [],
+   "country_code": "DJ",
+   "lat": 11.8,
+   "lon": 42.6,
+   "precision_km": 100,
+   "is_gcc": false,
+   "region": "horn_of_africa"
+  },
+  {
+   "id": "country:er",
+   "kind": "country",
+   "name": "Eritrea",
+   "name_ar": "إريتريا",
+   "aliases": [
+    "Eritrean"
+   ],
+   "country_code": "ER",
+   "lat": 15.2,
+   "lon": 39.8,
+   "precision_km": 300,
+   "is_gcc": false,
+   "region": "horn_of_africa"
+  },
+  {
+   "id": "country:et",
+   "kind": "country",
+   "name": "Ethiopia",
+   "name_ar": "إثيوبيا",
+   "aliases": [
+    "Ethiopian"
+   ],
+   "country_code": "ET",
+   "lat": 9.1,
+   "lon": 40.5,
+   "precision_km": 700,
+   "is_gcc": false,
+   "region": "horn_of_africa"
+  },
+  {
+   "id": "country:so",
+   "kind": "country",
+   "name": "Somalia",
+   "name_ar": "الصومال",
+   "aliases": [
+    "Somali",
+    "Somaliland",
+    "Puntland"
+   ],
+   "country_code": "SO",
+   "lat": 5.2,
+   "lon": 46.2,
+   "precision_km": 700,
+   "is_gcc": false,
+   "region": "horn_of_africa"
+  },
+  {
+   "id": "country:sd",
+   "kind": "country",
+   "name": "Sudan",
+   "name_ar": "السودان",
+   "aliases": [
+    "Sudanese"
+   ],
+   "country_code": "SD",
+   "lat": 15.6,
+   "lon": 30.2,
+   "precision_km": 800,
+   "is_gcc": false,
+   "region": "red_sea"
+  },
+  {
+   "id": "city:sa:riyadh",
+   "kind": "city",
+   "name": "Riyadh",
+   "name_ar": "الرياض",
+   "aliases": [],
+   "country_code": "SA",
+   "parent_id": "country:sa",
+   "lat": 24.71,
+   "lon": 46.68,
+   "precision_km": 20,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:sa:jeddah",
+   "kind": "city",
+   "name": "Jeddah",
+   "name_ar": "جدة",
+   "aliases": [
+    "Jidda",
+    "Jiddah"
+   ],
+   "country_code": "SA",
+   "parent_id": "country:sa",
+   "lat": 21.49,
+   "lon": 39.19,
+   "precision_km": 15,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:sa:mecca",
+   "kind": "city",
+   "name": "Mecca",
+   "name_ar": "مكة المكرمة",
+   "aliases": [
+    "Makkah",
+    "مكة"
+   ],
+   "country_code": "SA",
+   "parent_id": "country:sa",
+   "lat": 21.42,
+   "lon": 39.83,
+   "precision_km": 10,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:sa:medina",
+   "kind": "city",
+   "name": "Medina",
+   "name_ar": "المدينة المنورة",
+   "aliases": [
+    "Madinah"
+   ],
+   "country_code": "SA",
+   "parent_id": "country:sa",
+   "lat": 24.47,
+   "lon": 39.61,
+   "precision_km": 10,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:sa:dammam",
+   "kind": "city",
+   "name": "Dammam",
+   "name_ar": "الدمام",
+   "aliases": [],
+   "country_code": "SA",
+   "parent_id": "country:sa",
+   "lat": 26.43,
+   "lon": 50.1,
+   "precision_km": 10,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:sa:dhahran",
+   "kind": "city",
+   "name": "Dhahran",
+   "name_ar": "الظهران",
+   "aliases": [],
+   "country_code": "SA",
+   "parent_id": "country:sa",
+   "lat": 26.29,
+   "lon": 50.11,
+   "precision_km": 8,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:sa:khobar",
+   "kind": "city",
+   "name": "Al Khobar",
+   "name_ar": "الخبر",
+   "aliases": [
+    "Khobar"
+   ],
+   "country_code": "SA",
+   "parent_id": "country:sa",
+   "lat": 26.28,
+   "lon": 50.21,
+   "precision_km": 8,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:sa:jubail",
+   "kind": "city",
+   "name": "Jubail",
+   "name_ar": "الجبيل",
+   "aliases": [
+    "Al Jubail"
+   ],
+   "country_code": "SA",
+   "parent_id": "country:sa",
+   "lat": 27.01,
+   "lon": 49.66,
+   "precision_km": 10,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:sa:yanbu",
+   "kind": "city",
+   "name": "Yanbu",
+   "name_ar": "ينبع",
+   "aliases": [],
+   "country_code": "SA",
+   "parent_id": "country:sa",
+   "lat": 24.09,
+   "lon": 38.06,
+   "precision_km": 10,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:sa:abha",
+   "kind": "city",
+   "name": "Abha",
+   "name_ar": "أبها",
+   "aliases": [],
+   "country_code": "SA",
+   "parent_id": "country:sa",
+   "lat": 18.22,
+   "lon": 42.51,
+   "precision_km": 10,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:sa:jazan",
+   "kind": "city",
+   "name": "Jazan",
+   "name_ar": "جازان",
+   "aliases": [
+    "Jizan",
+    "Gizan",
+    "جيزان"
+   ],
+   "country_code": "SA",
+   "parent_id": "country:sa",
+   "lat": 16.89,
+   "lon": 42.55,
+   "precision_km": 10,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:sa:najran",
+   "kind": "city",
+   "name": "Najran",
+   "name_ar": "نجران",
+   "aliases": [],
+   "country_code": "SA",
+   "parent_id": "country:sa",
+   "lat": 17.49,
+   "lon": 44.13,
+   "precision_km": 10,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:sa:tabuk",
+   "kind": "city",
+   "name": "Tabuk",
+   "name_ar": "تبوك",
+   "aliases": [],
+   "country_code": "SA",
+   "parent_id": "country:sa",
+   "lat": 28.38,
+   "lon": 36.57,
+   "precision_km": 10,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:sa:khamis-mushait",
+   "kind": "city",
+   "name": "Khamis Mushait",
+   "name_ar": "خميس مشيط",
+   "aliases": [],
+   "country_code": "SA",
+   "parent_id": "country:sa",
+   "lat": 18.31,
+   "lon": 42.73,
+   "precision_km": 10,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:sa:taif",
+   "kind": "city",
+   "name": "Taif",
+   "name_ar": "الطائف",
+   "aliases": [
+    "Ta'if"
+   ],
+   "country_code": "SA",
+   "parent_id": "country:sa",
+   "lat": 21.27,
+   "lon": 40.42,
+   "precision_km": 10,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:sa:qatif",
+   "kind": "city",
+   "name": "Qatif",
+   "name_ar": "القطيف",
+   "aliases": [
+    "Al Qatif"
+   ],
+   "country_code": "SA",
+   "parent_id": "country:sa",
+   "lat": 26.56,
+   "lon": 50.01,
+   "precision_km": 8,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "facility:sa:abqaiq",
+   "kind": "facility",
+   "name": "Abqaiq oil processing facility",
+   "name_ar": "معمل بقيق",
+   "aliases": [
+    "Abqaiq",
+    "Buqayq",
+    "أبقيق",
+    "بقيق"
+   ],
+   "country_code": "SA",
+   "parent_id": "country:sa",
+   "lat": 25.94,
+   "lon": 49.68,
+   "precision_km": 5,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "port:sa:ras-tanura",
+   "kind": "port",
+   "name": "Ras Tanura terminal",
+   "name_ar": "رأس تنورة",
+   "aliases": [
+    "Ras Tanura"
+   ],
+   "country_code": "SA",
+   "parent_id": "country:sa",
+   "lat": 26.64,
+   "lon": 50.16,
+   "precision_km": 5,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "port:sa:jeddah-islamic",
+   "kind": "port",
+   "name": "Jeddah Islamic Port",
+   "name_ar": "ميناء جدة الإسلامي",
+   "aliases": [
+    "Jeddah port",
+    "port of Jeddah",
+    "ميناء جدة"
+   ],
+   "country_code": "SA",
+   "parent_id": "city:sa:jeddah",
+   "lat": 21.46,
+   "lon": 39.17,
+   "precision_km": 4,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "port:sa:dammam",
+   "kind": "port",
+   "name": "King Abdulaziz Port (Dammam)",
+   "name_ar": "ميناء الملك عبدالعزيز بالدمام",
+   "aliases": [
+    "Dammam port",
+    "port of Dammam",
+    "ميناء الدمام"
+   ],
+   "country_code": "SA",
+   "parent_id": "city:sa:dammam",
+   "lat": 26.5,
+   "lon": 50.2,
+   "precision_km": 4,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:ae:abu-dhabi",
+   "kind": "city",
+   "name": "Abu Dhabi",
+   "name_ar": "أبوظبي",
+   "aliases": [
+    "أبو ظبي"
+   ],
+   "country_code": "AE",
+   "parent_id": "country:ae",
+   "lat": 24.45,
+   "lon": 54.38,
+   "precision_km": 15,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:ae:dubai",
+   "kind": "city",
+   "name": "Dubai",
+   "name_ar": "دبي",
+   "aliases": [],
+   "country_code": "AE",
+   "parent_id": "country:ae",
+   "lat": 25.2,
+   "lon": 55.27,
+   "precision_km": 15,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:ae:sharjah",
+   "kind": "city",
+   "name": "Sharjah",
+   "name_ar": "الشارقة",
+   "aliases": [],
+   "country_code": "AE",
+   "parent_id": "country:ae",
+   "lat": 25.35,
+   "lon": 55.42,
+   "precision_km": 10,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:ae:fujairah",
+   "kind": "city",
+   "name": "Fujairah",
+   "name_ar": "الفجيرة",
+   "aliases": [],
+   "country_code": "AE",
+   "parent_id": "country:ae",
+   "lat": 25.12,
+   "lon": 56.33,
+   "precision_km": 8,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:ae:ras-al-khaimah",
+   "kind": "city",
+   "name": "Ras Al Khaimah",
+   "name_ar": "رأس الخيمة",
+   "aliases": [
+    "RAK"
+   ],
+   "country_code": "AE",
+   "parent_id": "country:ae",
+   "lat": 25.79,
+   "lon": 55.94,
+   "precision_km": 8,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:ae:ajman",
+   "kind": "city",
+   "name": "Ajman",
+   "name_ar": "عجمان",
+   "aliases": [],
+   "country_code": "AE",
+   "parent_id": "country:ae",
+   "lat": 25.41,
+   "lon": 55.51,
+   "precision_km": 6,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:ae:al-ain",
+   "kind": "city",
+   "name": "Al Ain",
+   "name_ar": "العين",
+   "aliases": [],
+   "country_code": "AE",
+   "parent_id": "country:ae",
+   "lat": 24.21,
+   "lon": 55.74,
+   "precision_km": 10,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "facility:ae:ruwais",
+   "kind": "facility",
+   "name": "Ruwais industrial complex",
+   "name_ar": "الرويس",
+   "aliases": [
+    "Ruwais",
+    "Al Ruwais",
+    "Ruwais refinery"
+   ],
+   "country_code": "AE",
+   "parent_id": "country:ae",
+   "lat": 24.11,
+   "lon": 52.73,
+   "precision_km": 6,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "port:ae:jebel-ali",
+   "kind": "port",
+   "name": "Jebel Ali Port",
+   "name_ar": "ميناء جبل علي",
+   "aliases": [
+    "Jebel Ali",
+    "جبل علي"
+   ],
+   "country_code": "AE",
+   "parent_id": "city:ae:dubai",
+   "lat": 25.01,
+   "lon": 55.06,
+   "precision_km": 5,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "port:ae:fujairah",
+   "kind": "port",
+   "name": "Port of Fujairah",
+   "name_ar": "ميناء الفجيرة",
+   "aliases": [
+    "Fujairah port",
+    "Fujairah anchorage"
+   ],
+   "country_code": "AE",
+   "parent_id": "city:ae:fujairah",
+   "lat": 25.17,
+   "lon": 56.36,
+   "precision_km": 5,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "port:ae:khor-fakkan",
+   "kind": "port",
+   "name": "Khor Fakkan Port",
+   "name_ar": "ميناء خورفكان",
+   "aliases": [
+    "Khor Fakkan",
+    "خورفكان"
+   ],
+   "country_code": "AE",
+   "parent_id": "country:ae",
+   "lat": 25.35,
+   "lon": 56.36,
+   "precision_km": 4,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "port:ae:khalifa",
+   "kind": "port",
+   "name": "Khalifa Port",
+   "name_ar": "ميناء خليفة",
+   "aliases": [],
+   "country_code": "AE",
+   "parent_id": "city:ae:abu-dhabi",
+   "lat": 24.81,
+   "lon": 54.65,
+   "precision_km": 5,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:qa:doha",
+   "kind": "city",
+   "name": "Doha",
+   "name_ar": "الدوحة",
+   "aliases": [],
+   "country_code": "QA",
+   "parent_id": "country:qa",
+   "lat": 25.29,
+   "lon": 51.53,
+   "precision_km": 12,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:qa:al-wakrah",
+   "kind": "city",
+   "name": "Al Wakrah",
+   "name_ar": "الوكرة",
+   "aliases": [
+    "Wakrah"
+   ],
+   "country_code": "QA",
+   "parent_id": "country:qa",
+   "lat": 25.17,
+   "lon": 51.6,
+   "precision_km": 6,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:qa:al-khor",
+   "kind": "city",
+   "name": "Al Khor",
+   "name_ar": "الخور",
+   "aliases": [],
+   "country_code": "QA",
+   "parent_id": "country:qa",
+   "lat": 25.68,
+   "lon": 51.5,
+   "precision_km": 6,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "facility:qa:mesaieed",
+   "kind": "facility",
+   "name": "Mesaieed industrial city",
+   "name_ar": "مسيعيد",
+   "aliases": [
+    "Mesaieed",
+    "Umm Said"
+   ],
+   "country_code": "QA",
+   "parent_id": "country:qa",
+   "lat": 24.99,
+   "lon": 51.55,
+   "precision_km": 6,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "port:qa:ras-laffan",
+   "kind": "port",
+   "name": "Ras Laffan port and industrial city",
+   "name_ar": "رأس لفان",
+   "aliases": [
+    "Ras Laffan"
+   ],
+   "country_code": "QA",
+   "parent_id": "country:qa",
+   "lat": 25.91,
+   "lon": 51.57,
+   "precision_km": 6,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "port:qa:hamad",
+   "kind": "port",
+   "name": "Hamad Port",
+   "name_ar": "ميناء حمد",
+   "aliases": [],
+   "country_code": "QA",
+   "parent_id": "country:qa",
+   "lat": 25.01,
+   "lon": 51.61,
+   "precision_km": 5,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:kw:kuwait-city",
+   "kind": "city",
+   "name": "Kuwait City",
+   "name_ar": "مدينة الكويت",
+   "aliases": [
+    "العاصمة الكويتية"
+   ],
+   "country_code": "KW",
+   "parent_id": "country:kw",
+   "lat": 29.38,
+   "lon": 47.98,
+   "precision_km": 12,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:kw:ahmadi",
+   "kind": "city",
+   "name": "Al Ahmadi",
+   "name_ar": "الأحمدي",
+   "aliases": [
+    "Ahmadi"
+   ],
+   "country_code": "KW",
+   "parent_id": "country:kw",
+   "lat": 29.08,
+   "lon": 48.08,
+   "precision_km": 8,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:kw:jahra",
+   "kind": "city",
+   "name": "Jahra",
+   "name_ar": "الجهراء",
+   "aliases": [
+    "Al Jahra"
+   ],
+   "country_code": "KW",
+   "parent_id": "country:kw",
+   "lat": 29.34,
+   "lon": 47.66,
+   "precision_km": 8,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "port:kw:shuwaikh",
+   "kind": "port",
+   "name": "Shuwaikh Port",
+   "name_ar": "ميناء الشويخ",
+   "aliases": [
+    "Shuwaikh"
+   ],
+   "country_code": "KW",
+   "parent_id": "city:kw:kuwait-city",
+   "lat": 29.35,
+   "lon": 47.93,
+   "precision_km": 4,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "port:kw:mina-al-ahmadi",
+   "kind": "port",
+   "name": "Mina al-Ahmadi port and refinery",
+   "name_ar": "ميناء الأحمدي",
+   "aliases": [
+    "Mina al-Ahmadi",
+    "Mina Al Ahmadi"
+   ],
+   "country_code": "KW",
+   "parent_id": "city:kw:ahmadi",
+   "lat": 29.06,
+   "lon": 48.15,
+   "precision_km": 5,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:bh:manama",
+   "kind": "city",
+   "name": "Manama",
+   "name_ar": "المنامة",
+   "aliases": [],
+   "country_code": "BH",
+   "parent_id": "country:bh",
+   "lat": 26.23,
+   "lon": 50.59,
+   "precision_km": 6,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:bh:muharraq",
+   "kind": "city",
+   "name": "Muharraq",
+   "name_ar": "المحرق",
+   "aliases": [
+    "Al Muharraq"
+   ],
+   "country_code": "BH",
+   "parent_id": "country:bh",
+   "lat": 26.26,
+   "lon": 50.61,
+   "precision_km": 5,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:bh:riffa",
+   "kind": "city",
+   "name": "Riffa",
+   "name_ar": "الرفاع",
+   "aliases": [],
+   "country_code": "BH",
+   "parent_id": "country:bh",
+   "lat": 26.13,
+   "lon": 50.56,
+   "precision_km": 5,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "facility:bh:sitra",
+   "kind": "facility",
+   "name": "Sitra industrial area and refinery",
+   "name_ar": "سترة",
+   "aliases": [
+    "Sitra",
+    "Sitra refinery"
+   ],
+   "country_code": "BH",
+   "parent_id": "country:bh",
+   "lat": 26.16,
+   "lon": 50.63,
+   "precision_km": 5,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:om:muscat",
+   "kind": "city",
+   "name": "Muscat",
+   "name_ar": "مسقط",
+   "aliases": [],
+   "country_code": "OM",
+   "parent_id": "country:om",
+   "lat": 23.59,
+   "lon": 58.41,
+   "precision_km": 15,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:om:salalah",
+   "kind": "city",
+   "name": "Salalah",
+   "name_ar": "صلالة",
+   "aliases": [],
+   "country_code": "OM",
+   "parent_id": "country:om",
+   "lat": 17.02,
+   "lon": 54.09,
+   "precision_km": 10,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:om:sohar",
+   "kind": "city",
+   "name": "Sohar",
+   "name_ar": "صحار",
+   "aliases": [],
+   "country_code": "OM",
+   "parent_id": "country:om",
+   "lat": 24.34,
+   "lon": 56.71,
+   "precision_km": 10,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:om:duqm",
+   "kind": "city",
+   "name": "Duqm",
+   "name_ar": "الدقم",
+   "aliases": [
+    "Al Duqm"
+   ],
+   "country_code": "OM",
+   "parent_id": "country:om",
+   "lat": 19.66,
+   "lon": 57.7,
+   "precision_km": 10,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:om:sur",
+   "kind": "city",
+   "name": "Sur",
+   "name_ar": "صور",
+   "aliases": [],
+   "country_code": "OM",
+   "parent_id": "country:om",
+   "lat": 22.57,
+   "lon": 59.53,
+   "precision_km": 8,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:om:khasab",
+   "kind": "city",
+   "name": "Khasab",
+   "name_ar": "خصب",
+   "aliases": [],
+   "country_code": "OM",
+   "parent_id": "country:om",
+   "lat": 26.18,
+   "lon": 56.25,
+   "precision_km": 15,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "port:om:salalah",
+   "kind": "port",
+   "name": "Port of Salalah",
+   "name_ar": "ميناء صلالة",
+   "aliases": [
+    "Salalah port"
+   ],
+   "country_code": "OM",
+   "parent_id": "city:om:salalah",
+   "lat": 16.94,
+   "lon": 54.0,
+   "precision_km": 5,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "port:om:sohar",
+   "kind": "port",
+   "name": "Port of Sohar",
+   "name_ar": "ميناء صحار",
+   "aliases": [
+    "Sohar port"
+   ],
+   "country_code": "OM",
+   "parent_id": "city:om:sohar",
+   "lat": 24.5,
+   "lon": 56.61,
+   "precision_km": 6,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "port:om:duqm",
+   "kind": "port",
+   "name": "Port of Duqm",
+   "name_ar": "ميناء الدقم",
+   "aliases": [
+    "Duqm port"
+   ],
+   "country_code": "OM",
+   "parent_id": "city:om:duqm",
+   "lat": 19.65,
+   "lon": 57.72,
+   "precision_km": 8,
+   "is_gcc": true,
+   "region": "gcc"
+  },
+  {
+   "id": "city:ir:tehran",
+   "kind": "city",
+   "name": "Tehran",
+   "name_ar": "طهران",
+   "aliases": [],
+   "country_code": "IR",
+   "parent_id": "country:ir",
+   "lat": 35.69,
+   "lon": 51.39,
+   "precision_km": 20,
+   "is_gcc": false,
+   "region": "iran"
+  },
+  {
+   "id": "city:ir:bandar-abbas",
+   "kind": "city",
+   "name": "Bandar Abbas",
+   "name_ar": "بندر عباس",
+   "aliases": [],
+   "country_code": "IR",
+   "parent_id": "country:ir",
+   "lat": 27.18,
+   "lon": 56.27,
+   "precision_km": 10,
+   "is_gcc": false,
+   "region": "iran"
+  },
+  {
+   "id": "city:ir:bushehr",
+   "kind": "city",
+   "name": "Bushehr",
+   "name_ar": "بوشهر",
+   "aliases": [],
+   "country_code": "IR",
+   "parent_id": "country:ir",
+   "lat": 28.97,
+   "lon": 50.84,
+   "precision_km": 10,
+   "is_gcc": false,
+   "region": "iran"
+  },
+  {
+   "id": "city:ir:chabahar",
+   "kind": "city",
+   "name": "Chabahar",
+   "name_ar": "تشابهار",
+   "aliases": [
+    "جابهار"
+   ],
+   "country_code": "IR",
+   "parent_id": "country:ir",
+   "lat": 25.29,
+   "lon": 60.64,
+   "precision_km": 10,
+   "is_gcc": false,
+   "region": "iran"
+  },
+  {
+   "id": "city:ir:ahvaz",
+   "kind": "city",
+   "name": "Ahvaz",
+   "name_ar": "الأهواز",
+   "aliases": [
+    "Ahwaz"
+   ],
+   "country_code": "IR",
+   "parent_id": "country:ir",
+   "lat": 31.32,
+   "lon": 48.67,
+   "precision_km": 10,
+   "is_gcc": false,
+   "region": "iran"
+  },
+  {
+   "id": "facility:ir:kharg",
+   "kind": "facility",
+   "name": "Kharg Island oil terminal",
+   "name_ar": "جزيرة خرج",
+   "aliases": [
+    "Kharg Island",
+    "Kharg"
+   ],
+   "country_code": "IR",
+   "parent_id": "country:ir",
+   "lat": 29.24,
+   "lon": 50.32,
+   "precision_km": 6,
+   "is_gcc": false,
+   "region": "iran"
+  },
+  {
+   "id": "city:iq:baghdad",
+   "kind": "city",
+   "name": "Baghdad",
+   "name_ar": "بغداد",
+   "aliases": [],
+   "country_code": "IQ",
+   "parent_id": "country:iq",
+   "lat": 33.31,
+   "lon": 44.36,
+   "precision_km": 20,
+   "is_gcc": false,
+   "region": "iraq"
+  },
+  {
+   "id": "city:iq:basra",
+   "kind": "city",
+   "name": "Basra",
+   "name_ar": "البصرة",
+   "aliases": [
+    "Basrah"
+   ],
+   "country_code": "IQ",
+   "parent_id": "country:iq",
+   "lat": 30.51,
+   "lon": 47.81,
+   "precision_km": 12,
+   "is_gcc": false,
+   "region": "iraq"
+  },
+  {
+   "id": "city:iq:erbil",
+   "kind": "city",
+   "name": "Erbil",
+   "name_ar": "أربيل",
+   "aliases": [
+    "Irbil",
+    "Hawler"
+   ],
+   "country_code": "IQ",
+   "parent_id": "country:iq",
+   "lat": 36.19,
+   "lon": 44.01,
+   "precision_km": 12,
+   "is_gcc": false,
+   "region": "iraq"
+  },
+  {
+   "id": "city:iq:mosul",
+   "kind": "city",
+   "name": "Mosul",
+   "name_ar": "الموصل",
+   "aliases": [],
+   "country_code": "IQ",
+   "parent_id": "country:iq",
+   "lat": 36.34,
+   "lon": 43.13,
+   "precision_km": 12,
+   "is_gcc": false,
+   "region": "iraq"
+  },
+  {
+   "id": "city:iq:kirkuk",
+   "kind": "city",
+   "name": "Kirkuk",
+   "name_ar": "كركوك",
+   "aliases": [],
+   "country_code": "IQ",
+   "parent_id": "country:iq",
+   "lat": 35.47,
+   "lon": 44.39,
+   "precision_km": 10,
+   "is_gcc": false,
+   "region": "iraq"
+  },
+  {
+   "id": "port:iq:umm-qasr",
+   "kind": "port",
+   "name": "Umm Qasr Port",
+   "name_ar": "ميناء أم قصر",
+   "aliases": [
+    "Umm Qasr",
+    "أم قصر"
+   ],
+   "country_code": "IQ",
+   "parent_id": "country:iq",
+   "lat": 30.03,
+   "lon": 47.95,
+   "precision_km": 5,
+   "is_gcc": false,
+   "region": "iraq"
+  },
+  {
+   "id": "city:ye:sanaa",
+   "kind": "city",
+   "name": "Sanaa",
+   "name_ar": "صنعاء",
+   "aliases": [
+    "Sana'a",
+    "Sana"
+   ],
+   "country_code": "YE",
+   "parent_id": "country:ye",
+   "lat": 15.37,
+   "lon": 44.19,
+   "precision_km": 12,
+   "is_gcc": false,
+   "region": "yemen"
+  },
+  {
+   "id": "city:ye:aden",
+   "kind": "city",
+   "name": "Aden",
+   "name_ar": "عدن",
+   "aliases": [],
+   "country_code": "YE",
+   "parent_id": "country:ye",
+   "lat": 12.79,
+   "lon": 45.03,
+   "precision_km": 10,
+   "is_gcc": false,
+   "region": "yemen"
+  },
+  {
+   "id": "city:ye:hodeidah",
+   "kind": "city",
+   "name": "Hodeidah",
+   "name_ar": "الحديدة",
+   "aliases": [
+    "Hudaydah",
+    "Hodeida"
+   ],
+   "country_code": "YE",
+   "parent_id": "country:ye",
+   "lat": 14.8,
+   "lon": 42.95,
+   "precision_km": 10,
+   "is_gcc": false,
+   "region": "yemen"
+  },
+  {
+   "id": "city:ye:marib",
+   "kind": "city",
+   "name": "Marib",
+   "name_ar": "مأرب",
+   "aliases": [
+    "Ma'rib"
+   ],
+   "country_code": "YE",
+   "parent_id": "country:ye",
+   "lat": 15.46,
+   "lon": 45.33,
+   "precision_km": 10,
+   "is_gcc": false,
+   "region": "yemen"
+  },
+  {
+   "id": "city:ye:mukalla",
+   "kind": "city",
+   "name": "Mukalla",
+   "name_ar": "المكلا",
+   "aliases": [
+    "Al Mukalla"
+   ],
+   "country_code": "YE",
+   "parent_id": "country:ye",
+   "lat": 14.54,
+   "lon": 49.12,
+   "precision_km": 10,
+   "is_gcc": false,
+   "region": "yemen"
+  },
+  {
+   "id": "city:ye:taiz",
+   "kind": "city",
+   "name": "Taiz",
+   "name_ar": "تعز",
+   "aliases": [
+    "Ta'izz"
+   ],
+   "country_code": "YE",
+   "parent_id": "country:ye",
+   "lat": 13.58,
+   "lon": 44.02,
+   "precision_km": 10,
+   "is_gcc": false,
+   "region": "yemen"
+  },
+  {
+   "id": "city:ye:mokha",
+   "kind": "city",
+   "name": "Mokha",
+   "name_ar": "المخا",
+   "aliases": [
+    "Mocha",
+    "Al Mukha"
+   ],
+   "country_code": "YE",
+   "parent_id": "country:ye",
+   "lat": 13.32,
+   "lon": 43.25,
+   "precision_km": 8,
+   "is_gcc": false,
+   "region": "yemen"
+  },
+  {
+   "id": "port:ye:hodeidah",
+   "kind": "port",
+   "name": "Hodeidah Port",
+   "name_ar": "ميناء الحديدة",
+   "aliases": [
+    "port of Hodeidah"
+   ],
+   "country_code": "YE",
+   "parent_id": "city:ye:hodeidah",
+   "lat": 14.83,
+   "lon": 42.93,
+   "precision_km": 5,
+   "is_gcc": false,
+   "region": "yemen"
+  },
+  {
+   "id": "port:ye:aden",
+   "kind": "port",
+   "name": "Port of Aden",
+   "name_ar": "ميناء عدن",
+   "aliases": [
+    "Aden port"
+   ],
+   "country_code": "YE",
+   "parent_id": "city:ye:aden",
+   "lat": 12.8,
+   "lon": 44.97,
+   "precision_km": 5,
+   "is_gcc": false,
+   "region": "yemen"
+  },
+  {
+   "id": "city:il:jerusalem",
+   "kind": "city",
+   "name": "Jerusalem",
+   "name_ar": "القدس",
+   "aliases": [],
+   "country_code": "IL",
+   "parent_id": "country:il",
+   "lat": 31.77,
+   "lon": 35.21,
+   "precision_km": 10,
+   "is_gcc": false,
+   "region": "israel_palestine"
+  },
+  {
+   "id": "city:il:tel-aviv",
+   "kind": "city",
+   "name": "Tel Aviv",
+   "name_ar": "تل أبيب",
+   "aliases": [],
+   "country_code": "IL",
+   "parent_id": "country:il",
+   "lat": 32.08,
+   "lon": 34.78,
+   "precision_km": 10,
+   "is_gcc": false,
+   "region": "israel_palestine"
+  },
+  {
+   "id": "city:il:haifa",
+   "kind": "city",
+   "name": "Haifa",
+   "name_ar": "حيفا",
+   "aliases": [],
+   "country_code": "IL",
+   "parent_id": "country:il",
+   "lat": 32.79,
+   "lon": 34.99,
+   "precision_km": 8,
+   "is_gcc": false,
+   "region": "israel_palestine"
+  },
+  {
+   "id": "city:il:eilat",
+   "kind": "city",
+   "name": "Eilat",
+   "name_ar": "إيلات",
+   "aliases": [
+    "Elat"
+   ],
+   "country_code": "IL",
+   "parent_id": "country:il",
+   "lat": 29.56,
+   "lon": 34.95,
+   "precision_km": 6,
+   "is_gcc": false,
+   "region": "israel_palestine"
+  },
+  {
+   "id": "city:ps:gaza",
+   "kind": "city",
+   "name": "Gaza",
+   "name_ar": "غزة",
+   "aliases": [
+    "Gaza Strip",
+    "قطاع غزة"
+   ],
+   "country_code": "PS",
+   "parent_id": "country:ps",
+   "lat": 31.5,
+   "lon": 34.47,
+   "precision_km": 20,
+   "is_gcc": false,
+   "region": "israel_palestine"
+  },
+  {
+   "id": "city:jo:amman",
+   "kind": "city",
+   "name": "Amman",
+   "name_ar": "عمّان",
+   "aliases": [],
+   "country_code": "JO",
+   "parent_id": "country:jo",
+   "lat": 31.95,
+   "lon": 35.93,
+   "precision_km": 15,
+   "is_gcc": false,
+   "region": "levant"
+  },
+  {
+   "id": "city:jo:aqaba",
+   "kind": "city",
+   "name": "Aqaba",
+   "name_ar": "العقبة",
+   "aliases": [],
+   "country_code": "JO",
+   "parent_id": "country:jo",
+   "lat": 29.53,
+   "lon": 35.01,
+   "precision_km": 8,
+   "is_gcc": false,
+   "region": "levant"
+  },
+  {
+   "id": "city:lb:beirut",
+   "kind": "city",
+   "name": "Beirut",
+   "name_ar": "بيروت",
+   "aliases": [],
+   "country_code": "LB",
+   "parent_id": "country:lb",
+   "lat": 33.89,
+   "lon": 35.5,
+   "precision_km": 8,
+   "is_gcc": false,
+   "region": "levant"
+  },
+  {
+   "id": "city:sy:damascus",
+   "kind": "city",
+   "name": "Damascus",
+   "name_ar": "دمشق",
+   "aliases": [],
+   "country_code": "SY",
+   "parent_id": "country:sy",
+   "lat": 33.51,
+   "lon": 36.29,
+   "precision_km": 12,
+   "is_gcc": false,
+   "region": "levant"
+  },
+  {
+   "id": "city:sy:aleppo",
+   "kind": "city",
+   "name": "Aleppo",
+   "name_ar": "حلب",
+   "aliases": [],
+   "country_code": "SY",
+   "parent_id": "country:sy",
+   "lat": 36.2,
+   "lon": 37.13,
+   "precision_km": 12,
+   "is_gcc": false,
+   "region": "levant"
+  },
+  {
+   "id": "city:eg:cairo",
+   "kind": "city",
+   "name": "Cairo",
+   "name_ar": "القاهرة",
+   "aliases": [],
+   "country_code": "EG",
+   "parent_id": "country:eg",
+   "lat": 30.04,
+   "lon": 31.24,
+   "precision_km": 20,
+   "is_gcc": false,
+   "region": "egypt"
+  },
+  {
+   "id": "city:eg:suez",
+   "kind": "city",
+   "name": "Suez",
+   "name_ar": "السويس",
+   "aliases": [],
+   "country_code": "EG",
+   "parent_id": "country:eg",
+   "lat": 29.97,
+   "lon": 32.53,
+   "precision_km": 8,
+   "is_gcc": false,
+   "region": "egypt"
+  },
+  {
+   "id": "city:eg:port-said",
+   "kind": "city",
+   "name": "Port Said",
+   "name_ar": "بورسعيد",
+   "aliases": [
+    "بور سعيد"
+   ],
+   "country_code": "EG",
+   "parent_id": "country:eg",
+   "lat": 31.26,
+   "lon": 32.3,
+   "precision_km": 8,
+   "is_gcc": false,
+   "region": "egypt"
+  },
+  {
+   "id": "city:dj:djibouti",
+   "kind": "city",
+   "name": "Djibouti City",
+   "name_ar": "مدينة جيبوتي",
+   "aliases": [],
+   "country_code": "DJ",
+   "parent_id": "country:dj",
+   "lat": 11.59,
+   "lon": 43.15,
+   "precision_km": 8,
+   "is_gcc": false,
+   "region": "horn_of_africa"
+  },
+  {
+   "id": "port:dj:djibouti",
+   "kind": "port",
+   "name": "Port of Djibouti",
+   "name_ar": "ميناء جيبوتي",
+   "aliases": [
+    "Djibouti port"
+   ],
+   "country_code": "DJ",
+   "parent_id": "city:dj:djibouti",
+   "lat": 11.6,
+   "lon": 43.13,
+   "precision_km": 4,
+   "is_gcc": false,
+   "region": "horn_of_africa"
+  },
+  {
+   "id": "city:er:asmara",
+   "kind": "city",
+   "name": "Asmara",
+   "name_ar": "أسمرة",
+   "aliases": [],
+   "country_code": "ER",
+   "parent_id": "country:er",
+   "lat": 15.32,
+   "lon": 38.93,
+   "precision_km": 10,
+   "is_gcc": false,
+   "region": "horn_of_africa"
+  },
+  {
+   "id": "city:er:massawa",
+   "kind": "city",
+   "name": "Massawa",
+   "name_ar": "مصوع",
+   "aliases": [],
+   "country_code": "ER",
+   "parent_id": "country:er",
+   "lat": 15.61,
+   "lon": 39.45,
+   "precision_km": 8,
+   "is_gcc": false,
+   "region": "horn_of_africa"
+  },
+  {
+   "id": "city:er:assab",
+   "kind": "city",
+   "name": "Assab",
+   "name_ar": "عصب",
+   "aliases": [],
+   "country_code": "ER",
+   "parent_id": "country:er",
+   "lat": 13.01,
+   "lon": 42.74,
+   "precision_km": 8,
+   "is_gcc": false,
+   "region": "horn_of_africa"
+  },
+  {
+   "id": "city:et:addis-ababa",
+   "kind": "city",
+   "name": "Addis Ababa",
+   "name_ar": "أديس أبابا",
+   "aliases": [],
+   "country_code": "ET",
+   "parent_id": "country:et",
+   "lat": 9.03,
+   "lon": 38.74,
+   "precision_km": 15,
+   "is_gcc": false,
+   "region": "horn_of_africa"
+  },
+  {
+   "id": "city:so:mogadishu",
+   "kind": "city",
+   "name": "Mogadishu",
+   "name_ar": "مقديشو",
+   "aliases": [],
+   "country_code": "SO",
+   "parent_id": "country:so",
+   "lat": 2.05,
+   "lon": 45.32,
+   "precision_km": 12,
+   "is_gcc": false,
+   "region": "horn_of_africa"
+  },
+  {
+   "id": "city:so:berbera",
+   "kind": "city",
+   "name": "Berbera",
+   "name_ar": "بربرة",
+   "aliases": [],
+   "country_code": "SO",
+   "parent_id": "country:so",
+   "lat": 10.44,
+   "lon": 45.01,
+   "precision_km": 8,
+   "is_gcc": false,
+   "region": "horn_of_africa"
+  },
+  {
+   "id": "city:so:bosaso",
+   "kind": "city",
+   "name": "Bosaso",
+   "name_ar": "بوصاصو",
+   "aliases": [
+    "Bossaso"
+   ],
+   "country_code": "SO",
+   "parent_id": "country:so",
+   "lat": 11.28,
+   "lon": 49.18,
+   "precision_km": 8,
+   "is_gcc": false,
+   "region": "horn_of_africa"
+  },
+  {
+   "id": "city:sd:port-sudan",
+   "kind": "city",
+   "name": "Port Sudan",
+   "name_ar": "بورتسودان",
+   "aliases": [
+    "بور سودان"
+   ],
+   "country_code": "SD",
+   "parent_id": "country:sd",
+   "lat": 19.62,
+   "lon": 37.22,
+   "precision_km": 8,
+   "is_gcc": false,
+   "region": "red_sea"
+  },
+  {
+   "id": "maritime:strait-of-hormuz",
+   "kind": "maritime_zone",
+   "name": "Strait of Hormuz",
+   "name_ar": "مضيق هرمز",
+   "aliases": [
+    "Hormuz Strait",
+    "Hormuz",
+    "هرمز"
+   ],
+   "country_code": null,
+   "lat": 26.57,
+   "lon": 56.25,
+   "precision_km": 50,
+   "is_gcc": false,
+   "region": "gulf_waters"
+  },
+  {
+   "id": "maritime:arabian-gulf",
+   "kind": "maritime_zone",
+   "name": "Arabian Gulf / Persian Gulf",
+   "name_ar": "الخليج العربي",
+   "aliases": [
+    "Arabian Gulf",
+    "Persian Gulf",
+    "الخليج الفارسي"
+   ],
+   "country_code": null,
+   "lat": 27.0,
+   "lon": 51.5,
+   "precision_km": 400,
+   "is_gcc": false,
+   "region": "gulf_waters"
+  },
+  {
+   "id": "maritime:gulf-of-oman",
+   "kind": "maritime_zone",
+   "name": "Gulf of Oman",
+   "name_ar": "خليج عمان",
+   "aliases": [
+    "Sea of Oman",
+    "بحر عمان"
+   ],
+   "country_code": null,
+   "lat": 24.5,
+   "lon": 58.5,
+   "precision_km": 200,
+   "is_gcc": false,
+   "region": "gulf_waters"
+  },
+  {
+   "id": "maritime:arabian-sea",
+   "kind": "maritime_zone",
+   "name": "Arabian Sea",
+   "name_ar": "بحر العرب",
+   "aliases": [],
+   "country_code": null,
+   "lat": 16.0,
+   "lon": 62.0,
+   "precision_km": 800,
+   "is_gcc": false,
+   "region": "arabian_sea"
+  },
+  {
+   "id": "maritime:red-sea",
+   "kind": "maritime_zone",
+   "name": "Red Sea",
+   "name_ar": "البحر الأحمر",
+   "aliases": [],
+   "country_code": null,
+   "lat": 20.0,
+   "lon": 38.5,
+   "precision_km": 900,
+   "is_gcc": false,
+   "region": "red_sea"
+  },
+  {
+   "id": "maritime:bab-el-mandeb",
+   "kind": "maritime_zone",
+   "name": "Bab el-Mandeb Strait",
+   "name_ar": "مضيق باب المندب",
+   "aliases": [
+    "Bab el-Mandeb",
+    "Bab al-Mandab",
+    "Bab-el-Mandeb",
+    "باب المندب"
+   ],
+   "country_code": null,
+   "lat": 12.58,
+   "lon": 43.33,
+   "precision_km": 40,
+   "is_gcc": false,
+   "region": "red_sea"
+  },
+  {
+   "id": "maritime:gulf-of-aden",
+   "kind": "maritime_zone",
+   "name": "Gulf of Aden",
+   "name_ar": "خليج عدن",
+   "aliases": [],
+   "country_code": null,
+   "lat": 12.5,
+   "lon": 47.5,
+   "precision_km": 300,
+   "is_gcc": false,
+   "region": "red_sea"
+  },
+  {
+   "id": "corridor:suez-canal",
+   "kind": "corridor",
+   "name": "Suez Canal",
+   "name_ar": "قناة السويس",
+   "aliases": [],
+   "country_code": "EG",
+   "lat": 30.58,
+   "lon": 32.33,
+   "precision_km": 80,
+   "is_gcc": false,
+   "region": "egypt"
+  },
+  {
+   "id": "maritime:gulf-of-aqaba",
+   "kind": "maritime_zone",
+   "name": "Gulf of Aqaba",
+   "name_ar": "خليج العقبة",
+   "aliases": [],
+   "country_code": null,
+   "lat": 28.75,
+   "lon": 34.75,
+   "precision_km": 80,
+   "is_gcc": false,
+   "region": "red_sea"
+  }
+ ]
+}
