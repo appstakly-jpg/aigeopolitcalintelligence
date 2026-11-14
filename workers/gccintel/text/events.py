@@ -43,7 +43,7 @@ _CUES_AR = [
     "اعترض", "انفجار", "تفجير", "حريق", "حرائق", "اندلاع", "مقتل", "قتلى", "قتيل", "قتل", "اصابه", "اصابات",
     "جرحى", "جريح", "احتجاز", "اختطاف", "اشتباك", "معارك", "سيطره", "تدمير", "دمر", "اصطدام", "اصطدمت", "غرق",
     "تضرر", "تحطم", "شن", "اطلاق", "اطلق", "ضربه", "ضربات", "اعتقال", "توغل", "اقتحام", "اقتحم", "استعاد", "ضبط",
-    "لغم", "الغام", "بالغام",
+    "لغم", "الغام", "بالغام", "انقطاع",
 ]
 _CUE_AR = re.compile(r"(?:^|[\s\"'«(])(?:و|ف|ب|ل|لل|ال|وال|بال)?(?:" + "|".join(_CUES_AR) + ")")
 
@@ -56,13 +56,17 @@ _REACTION_AR = re.compile(r"(?:^|\s)(?:و)?(?:يدين|تدين|ادان|ادا�
 
 _TALLY_EN = re.compile(
     r"\b(?:since (?:the )?(?:start|beginning|outbreak) of|since (?:the )?(?:[\w-]+ ){0,2}war\b|so far (?:this|in)\b|"
-    r"(?:in|over|during) (?:a|one|the (?:past|last)) (?:week|month|year)\b|over the (?:past|last) \d+ (?:days|weeks|months))",
+    r"(?:in|over|during) (?:a|one|the (?:past|last)) (?:week|month|year)\b|over the (?:past|last) \d+ (?:days|weeks|months)|"
+    # "Gaza death toll rises to 74,645": a cumulative toll of a war, not one incident (a single incident's
+    # updated toll stays below a thousand).
+    r"\btoll\b[^.]{0,60}?\b(?:rises|rose|climbs|climbed|reaches|reached|hits|tops|surpasses|exceeds|passes|jumps)\s+"
+    r"(?:to\s+)?(?:over\s+|more than\s+|nearly\s+|almost\s+)?(?:\d{1,3}(?:,\d{3})+|\d{4,}))",
     re.IGNORECASE)
 _TALLY_AR = re.compile(r"(?:منذ (?:بدء|بدايه|اندلاع|مطلع)|حصيله|خلال (?:اسبوع|الاسبوع|شهر|الشهر|عام|العام))")
 
 _COMMENTARY_EN = re.compile(
     r"^(?:analysis|opinion|comment|explainer|editorial|podcast|video|watch|in pictures)\b|\?\s*['\"’]?\s*$|"
-    r"^(?:why|how|what|who|will|can|could|should|is|are|does|do)\b", re.IGNORECASE)
+    r"^(?:why|how|what|who|will|can|could|should|is|are|does|do)\b|\binterview\b", re.IGNORECASE)
 
 # "Riyadh, November 09 (QNA) - ", "DOHA (Reuters) - ", "Gaza, Nov 9 (AFP) –"
 _DATELINE_EN = re.compile(
@@ -106,5 +110,5 @@ def is_tally(title: str) -> bool:
 
 
 def is_commentary(title: str) -> bool:
-    """Analysis, opinion, explainers and question headlines."""
+    """Analysis, opinion, interviews, explainers and question headlines."""
     return bool(_COMMENTARY_EN.search((title or "").strip()))

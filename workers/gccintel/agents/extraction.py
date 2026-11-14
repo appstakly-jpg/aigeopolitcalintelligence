@@ -24,7 +24,7 @@ from ..llm.service import LLMService
 from ..log import get_logger
 from ..text import events, injection
 from ..text.gazetteer import GCC_CODES, Gazetteer, ResolvedLocation
-from ..text.normalize import clean_text, match_form, normalize_arabic, split_sentences
+from ..text.normalize import clean_text, contains_phrase, match_form, normalize_arabic, split_sentences
 from ..text.taxonomy import Taxonomy
 
 log = get_logger(__name__)
@@ -288,10 +288,17 @@ def infer_occurrence(text: str, published_at: datetime | None, tz_name: str) -> 
     return published_at, "reported"
 
 
-def compute_relevance(location: ResolvedLocation, categories: list[str], gazetteer: Gazetteer) -> tuple[float, str]:
+def compute_relevance(location: ResolvedLocation, categories: list[str], gazetteer: Gazetteer,
+                      outside: str | None = None) -> tuple[float, str]:
     if not categories:
         return 0.0, "no event category detected"
     affected = set(location.affected_countries)
+    if outside:
+        # Happened outside the coverage area ("drone activity over a UK air base"): kept only with a GCC link.
+        if affected & GCC_CODES:
+            return 0.6, (f"happened outside the coverage area ({outside}); involves "
+                         + ",".join(sorted(affected & GCC_CODES)))
+        return 0.15, f"happened outside the coverage area ({outside})"
     if location.country_code in GCC_CODES:
         return 1.0, f"primary location in GCC ({location.country_code})"
     if affected & GCC_CODES:
@@ -309,12 +316,10 @@ def compute_relevance(location: ResolvedLocation, categories: list[str], gazette
     return 0.1, "no location resolved"
 
 
-def _not_an_event_report(title: str, text: str, categories: list[str]) -> str | None:
+def _not_an_event_report(title: str, text: str, categories: list[str], scores: dict[str, float]) -> str | None:
     """Why an item with violence or damage keywords does not report a new event, or None if it does."""
     if not set(categories) & events.KINETIC:
         return None
-    if events.is_commentary(title):
-        return "Analysis, opinion or question headline, not an event report"
     if events.is_tally(title):
         return "Summary of earlier events (a running tally), not a new event"
     if events.is_reaction(title) and not events.event_cue(_strip_reaction_object(title)):
@@ -323,7 +328,25 @@ def _not_an_event_report(title: str, text: str, categories: list[str]) -> str | 
     lead = " ".join(sentences[:2]) if sentences else title
     if not events.event_cue(f"{title}. {lead}"):
         return "No specific event described (context, capability or policy news)"
+    # "Newborn twins fight for survival as conflict fuels Yemen's hunger crisis" ("... flee because of the
+    # fighting"): a headline that reports no event, with one weak violence keyword in the text, is background.
+    if title and not events.event_cue(title) and max((scores.get(c, 0.0) for c in categories
+                                                     if c in events.KINETIC), default=0.0) < 2:
+        return "Headline reports no event and the text mentions violence only in passing (background)"
     return None
+
+
+def _demanded_only(title: str, text: str, categories: list[str], matched: dict[str, list[str]]) -> list[str]:
+    """Categories named only as what a reaction asks for ("Protesters urge UK government to impose sanctions"):
+    their keywords occur after the reaction verb in the headline and nowhere else."""
+    if not title or not events.is_reaction(title):
+        return []
+    head = _strip_reaction_object(title)
+    head_toks, obj_toks = match_form(head).split(), match_form(title[len(head):]).split()
+    body_toks = match_form(text[len(title):] if text.startswith(title) else text).split()
+    return [c for c in categories if c not in events.KINETIC and matched.get(c)
+            and all(contains_phrase(obj_toks, k) and not contains_phrase(head_toks, k)
+                    and not contains_phrase(body_toks, k) for k in matched[c])]
 
 
 def _strip_reaction_object(title: str) -> str:
@@ -352,14 +375,39 @@ def rule_extract(*, title: str, excerpt: str, published_at: datetime | None, lan
     classes = taxonomy.classify(safe)
     categories = [c.key for c in classes]
     scores = {c.key: c.score for c in classes}
-    not_event = _not_an_event_report(safe_title, safe, categories)
-    if not_event:
+    not_event: str | None = None
+    if categories and events.is_commentary(safe_title):
+        not_event = "Analysis, opinion, interview or question headline, not an event report"
+        notes.append(f"{not_event}; event categories not applied ({', '.join(categories)}).")
+        categories, scores = [], {}
+    demanded = _demanded_only(safe_title, safe, categories, {c.key: c.matched for c in classes})
+    if demanded:
+        notes.append("Headline reports a reaction or demand; categories named only as what is demanded not applied ("
+                     + ", ".join(demanded) + ").")
+        categories = [c for c in categories if c not in demanded]
+        scores = {k: v for k, v in scores.items() if k in categories}
+        not_event = not_event or "Reaction or demand, not an event report"
+    kinetic_reason = _not_an_event_report(safe_title, safe, categories, scores)
+    if kinetic_reason:
+        not_event = kinetic_reason
         kept = [c for c in categories if c not in events.KINETIC]
-        notes.append(f"{not_event}; violence and damage categories not applied"
+        notes.append(f"{kinetic_reason}; violence and damage categories not applied"
                      + (f" ({', '.join(c for c in categories if c in events.KINETIC)})." if len(kept) < len(categories) else "."))
         categories, scores = kept, {k: v for k, v in scores.items() if k in kept}
     location = gazetteer.resolve(safe, safe_title)
-    relevance, reason = compute_relevance(location, categories, gazetteer)
+    # The headline's first "in/over/near <place>" decides whether the event happened inside the coverage area;
+    # without a place in the headline, the first sentence does.
+    first = gazetteer.first_locative_place(safe_title) if safe_title else None
+    if first is None and location.basis not in ("title-locative", "title"):
+        lead_sentences = split_sentences(safe[len(safe_title):] if safe_title and safe.startswith(safe_title) else safe)
+        first = gazetteer.first_locative_place(lead_sentences[0]) if lead_sentences else None
+    outside = first[0] if first and first[1] else None
+    if outside:
+        location = ResolvedLocation(None, None, None, "unknown", 0.0, "outside-coverage", None,
+                                    location.affected_countries,
+                                    [f"Happened in {outside}, outside the coverage area; not placed on the map."],
+                                    location.mentioned_entity_ids, "outside-coverage")
+    relevance, reason = compute_relevance(location, categories, gazetteer, outside)
     if not_event and not categories:
         reason = not_event
     killed, injured, cas_claims, cas_note = extract_casualties(safe)
@@ -402,7 +450,7 @@ def rule_extract(*, title: str, excerpt: str, published_at: datetime | None, lan
         title=title, title_en=title if language == "en" else None, summary_en=None,
         location={
             "entity_id": location.entity.id if location.entity else None,
-            "name": location.entity.name if location.entity else None,
+            "name": location.entity.name if location.entity else (outside or None), "basis": location.basis,
             "lat": location.lat, "lon": location.lon, "precision": location.precision,
             "confidence": location.confidence, "source": location.source, "country_code": location.country_code,
             "affected_countries": location.affected_countries, "mentioned": location.mentioned_entity_ids,
@@ -508,7 +556,8 @@ def llm_enrich(extraction: Extraction, *, title: str, excerpt: str, language: st
     if extraction.categories and not extraction.primary_category:
         extraction.primary_category = extraction.categories[0]
 
-    if not extraction.location.get("entity_id"):
+    # A place the model names never moves an event that happened outside the coverage area onto the map.
+    if not extraction.location.get("entity_id") and extraction.location.get("basis") != "outside-coverage":
         for place in data.get("places", []):
             if not _appears(place, source_text):
                 rejected.append(f"place:{place}")
@@ -557,8 +606,9 @@ def llm_enrich(extraction: Extraction, *, title: str, excerpt: str, language: st
                          extraction.location.get("lon"), extraction.location.get("precision") or "unknown",
                          extraction.location.get("confidence") or 0, extraction.location.get("source"),
                          extraction.location.get("country_code"), extraction.location.get("affected_countries") or [],
-                         [], []),
-        extraction.categories, gazetteer)
+                         [], [], extraction.location.get("basis") or ""),
+        extraction.categories, gazetteer,
+        extraction.location.get("name") if extraction.location.get("basis") == "outside-coverage" else None)
     extraction.relevance, extraction.relevance_reason = relevance, reason
     extraction.is_relevant = relevance >= 0.45 and bool(extraction.categories)
     return extraction
