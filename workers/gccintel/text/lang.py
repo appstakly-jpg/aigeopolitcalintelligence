@@ -43,15 +43,22 @@ def detect_language(text: str | None, hint: str | None = None) -> tuple[str, flo
     if hebrew / total >= 0.5:
         return ("he", 0.9)
     if latin / total >= 0.5:
-        en = len([w for w in words if w in _EN_WORDS])
-        fr = len([w for w in words if w in _FR_WORDS])
-        tr = len([w for w in words if w in _TR_WORDS]) + 2 * sum(1 for ch in letters if ch in _TR_CHARS)
-        best = max((en, "en"), (fr, "fr"), (tr, "tr"))
-        if best[0] == 0:
+        # Function words count only as written in lower case, so acronyms ("UN", "EN") are not
+        # mistaken for French or other words.
+        lower = [w for w in _WORD_RE.findall(text) if w.islower()]
+        # Turkish letters also appear in names inside other languages ("Türkiye", "Erdoğan"), so
+        # they add at most 2.
+        tr_letters = min(2, sum(1 for ch in letters if ch in _TR_CHARS))
+        evidence = {"en": sum(1 for w in lower if w in _EN_WORDS), "fr": sum(1 for w in lower if w in _FR_WORDS),
+                    "tr": sum(1 for w in lower if w in _TR_WORDS) + tr_letters}
+        if not any(evidence.values()):
             # Short headline with no function words: trust the source hint if Latin-script.
-            if hint in {"en", "fr", "tr"}:
+            if hint in evidence:
                 return (hint, 0.5)
             return ("en", 0.4)
-        conf = best[0] / max(1, en + fr + tr)
-        return (best[1], round(min(0.99, 0.5 + 0.5 * conf), 2))
+        # The feed's declared language is prior evidence: another language must clearly outscore it.
+        scores = {k: v + (2 if k == hint else 0) for k, v in evidence.items()}
+        best = max(scores, key=lambda k: (scores[k], k == hint))
+        conf = evidence[best] / sum(evidence.values())
+        return (best, round(min(0.99, 0.5 + 0.5 * conf), 2))
     return (hint or "und", 0.2)

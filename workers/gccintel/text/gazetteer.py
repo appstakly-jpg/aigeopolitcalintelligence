@@ -18,6 +18,22 @@ KIND_RANK = {
     "facility": 6, "port": 6, "border_crossing": 5, "city": 5, "admin1": 4,
     "maritime_zone": 3, "corridor": 3, "country": 1,
 }
+# Words that put the following place name in the role of a location ("in the Strait of Hormuz",
+# "في مضيق هرمز"), as opposed to an actor ("Tehran imposes restrictions", "Riyadh announced").
+LOCATIVE_EN = frozenset({"in", "at", "near", "off", "outside", "inside", "over", "into", "around", "across", "on",
+                         "toward", "towards", "targeting"})
+LOCATIVE_AR = frozenset({"في", "فى", "قرب", "قباله", "داخل", "عند", "بالقرب", "شمال", "جنوب", "شرق", "غرب", "شمالي",
+                         "جنوبي", "شرقي", "غربي", "على", "نحو", "تستهدف", "يستهدف", "استهدف", "استهدفت"})
+_SKIP_BEFORE_PLACE = frozenset({"the", "a", "an", "of", "من"})
+
+
+def _locative(toks: list[str], i: int) -> bool:
+    """Is the place name starting at token i introduced by a locative word (skipping articles)?"""
+    j = i - 1
+    while j >= 0 and toks[j] in _SKIP_BEFORE_PLACE and i - j <= 2:
+        j -= 1
+    return j >= 0 and (toks[j] in LOCATIVE_EN or toks[j] in LOCATIVE_AR)
+
 KIND_TO_PRECISION = {
     "facility": "facility", "port": "port", "border_crossing": "point", "city": "city", "admin1": "admin1",
     "maritime_zone": "maritime_zone", "corridor": "corridor", "country": "country",
@@ -62,6 +78,7 @@ class GeoMatch:
     count: int = 1
     in_title: bool = False
     ambiguous_with: list[str] = field(default_factory=list)
+    locative: bool = False   # named after "in", "at", "near", "off", "في", "قرب" ... (where something happened)
 
 
 @dataclass
@@ -112,13 +129,15 @@ class Gazetteer:
                 for cand in candidates:
                     for phrase, entity, alias in self._index.get(cand, ()):
                         if tuple([cand, *toks[i + 1 : i + len(phrase)]]) == phrase:
-                            spans.append((i, i + len(phrase), phrase, entity, alias))
+                            # Arabic "ب" attached to the place ("بمضيق هرمز") also means "in".
+                            prefixed_in = cand != tok and tok.startswith(("ب", "وب", "فب"))
+                            spans.append((i, i + len(phrase), phrase, entity, alias, prefixed_in or _locative(toks, i)))
             # Longest match wins: "Gulf of Oman" must not also count as a mention of Oman.
             # Identical spans (one ambiguous alias, several places) are all kept for disambiguation.
             spans.sort(key=lambda s: (-(s[1] - s[0]), s[0]))
             taken: set[int] = set()
             kept_spans: set[tuple[int, int]] = set()
-            for a, b, phrase, entity, alias in spans:
+            for a, b, phrase, entity, alias, locative in spans:
                 if (a, b) not in kept_spans and taken.intersection(range(a, b)):
                     continue
                 taken.update(range(a, b))
@@ -130,6 +149,7 @@ class Gazetteer:
                                  ambiguous_with=sorted(owners - {entity.id}) if owners else [])
                     matches[entity.id] = m
                 m.count += 1
+                m.locative = m.locative or locative
                 if is_title:
                     title_ids.add(entity.id)
         for eid in title_ids:
@@ -184,12 +204,18 @@ class Gazetteer:
             def score(m: GeoMatch) -> float:
                 return (KIND_RANK.get(m.entity.kind, 0) * 10 + min(m.count, 5) * 2
                         + (4 if m.in_title else 0) + (1 if m.entity.is_gcc else 0))
-            ranked = sorted(matches, key=score, reverse=True)
+            # Places named as locations ("in", "near", "في" ...) and places inside them come first;
+            # a capital used for its government ("Tehran imposes ...") does not place the event.
+            loc_ids = {m.entity.id for m in matches if m.locative}
+            pool = [m for m in matches if m.entity.id in loc_ids
+                    or any(a.id in loc_ids for a in self.ancestors(m.entity))] if loc_ids else matches
+            ranked = sorted(pool, key=score, reverse=True) + sorted([m for m in matches if m not in pool],
+                                                                     key=score, reverse=True)
             best = ranked[0]
             # Drop a country match when a more specific place inside it was found.
             confidence = BASE_CONFIDENCE.get(best.entity.kind, 0.4)
-            rivals = [m for m in ranked[1:]
-                      if KIND_RANK.get(m.entity.kind, 0) == KIND_RANK.get(best.entity.kind, 0)
+            rivals = [m for m in ranked[1:] if m in pool
+                      and KIND_RANK.get(m.entity.kind, 0) == KIND_RANK.get(best.entity.kind, 0)
                       and m.entity.country_code != best.entity.country_code
                       and best.entity.id not in [a.id for a in self.ancestors(m.entity)]
                       and m.entity.id not in [a.id for a in self.ancestors(best.entity)]]

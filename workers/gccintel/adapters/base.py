@@ -35,6 +35,7 @@ class AdapterResult:
     robots_allowed: bool | None = None
     latency_ms: int | None = None
     error: str | None = None
+    retry_after_seconds: int | None = None  # from a 429/503 Retry-After header
 
 
 class SourceAdapter(Protocol):
@@ -43,16 +44,23 @@ class SourceAdapter(Protocol):
     def fetch(self, source: dict) -> AdapterResult: ...
 
 
-_YY_RE = re.compile(r"^(\d{2})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})$")
+_YY_RE = re.compile(r"^(\d{2})-(\d{2})-(\d{2})(?:\s+|T)(\d{2}):(\d{2})$")
+# A feed date further ahead than this is treated as unknown: clocks drift by seconds, not hours,
+# and a "future" date usually means a wrong time zone in the feed.
+MAX_FUTURE_SKEW = timedelta(minutes=15)
 _DMY_RE = re.compile(r"^(\d{1,2})[/.](\d{1,2})[/.](\d{4})(?:[ T](\d{1,2}):(\d{2}))?$")
+_RFC_DATE_ONLY_RE = re.compile(r"^(?:[A-Za-z]{3},\s*)?(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})$")  # "Fri, 23 Oct 2026"
+_MONTHS = {m: i for i, m in enumerate(["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"], 1)}
 
 
-def parse_feed_date(raw: str | None, source_tz: str = "UTC", now: datetime | None = None) -> tuple[datetime | None, str]:
+def parse_feed_date(raw: str | None, source_tz: str = "UTC", now: datetime | None = None,
+                    ignore_offset: bool = False) -> tuple[datetime | None, str]:
     """Parse a feed date string into an aware UTC datetime.
 
     Dates WITHOUT an explicit offset are interpreted in the source's configured timezone
-    (e.g. Asia/Riyadh, UTC+3), not silently as UTC. Returns (datetime_utc | None, precision).
-    Dates more than 1 day in the future are rejected (clock/format errors).
+    (e.g. Asia/Riyadh, UTC+3), not silently as UTC. `ignore_offset` does the same for feeds known to
+    stamp local time with a wrong offset (e.g. "Z"). Returns (datetime_utc | None, precision).
+    Dates more than 15 minutes in the future are rejected as unknown (clock or time-zone errors).
     """
     if not raw or not raw.strip():
         return None, "unknown"
@@ -84,11 +92,18 @@ def parse_feed_date(raw: str | None, source_tz: str = "UTC", now: datetime | Non
             dt = datetime(y, mo, d, hh, mi)
             precision = "exact" if m.group(4) else "date"
     if dt is None:
+        m = _RFC_DATE_ONLY_RE.match(raw)
+        if m and m.group(2).lower() in _MONTHS:
+            dt = datetime(int(m.group(3)), _MONTHS[m.group(2).lower()], int(m.group(1)))
+            precision = "date"
+    if dt is None:
         return None, "unknown"
+    if ignore_offset:
+        dt = dt.replace(tzinfo=None)
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=tz)
     dt = dt.astimezone(UTC)
     now = now or datetime.now(UTC)
-    if dt > now + timedelta(days=1):
+    if dt > now + MAX_FUTURE_SKEW:
         return None, "unknown"
     return dt, precision

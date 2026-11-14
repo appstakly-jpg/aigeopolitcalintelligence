@@ -17,13 +17,24 @@ const msg = (e: unknown) => {
 export async function sourceDecisionAction(_p: State, form: FormData): Promise<State> {
   try {
     const s = await actionSession(["admin"]);
-    const d = z.object({ id: z.string().uuid(), op: z.enum(["approve", "enable", "disable", "reject", "retire"]), note: z.string().trim().max(500).optional() })
-      .parse({ id: form.get("id"), op: form.get("op"), note: form.get("note") || undefined });
+    const d = z.object({
+      id: z.string().uuid(), op: z.enum(["approve", "enable", "disable", "reject", "retire"]), note: z.string().trim().max(500).optional(),
+      limited_use: z.literal("yes").optional(),
+    }).parse({ id: form.get("id"), op: form.get("op"), note: form.get("note") || undefined, limited_use: form.get("limited_use") || undefined });
+    let limitedUse = false;
     await withRls(s, async (tx) => {
-      const [src] = await tx<{ status: string; license_type: string; verified_at: Date | null }[]>`select status, license_type, verified_at from sources where id = ${d.id}`;
+      const [src] = await tx<{ status: string; license_type: string; usage_policy: string; max_excerpt_chars: number }[]>`
+        select status, license_type, usage_policy, max_excerpt_chars from sources where id = ${d.id}`;
       if (!src) throw new Error("Source not found");
       if ((d.op === "approve" || d.op === "enable") && src.license_type === "review_required") {
-        throw new Error("Record the licence terms first (licence type is still 'review required').");
+        // An unreviewed licence allows limited use only: headlines, links and short excerpts.
+        if (src.usage_policy === "full_text") {
+          throw new Error("Full text needs a recorded licence. Set usage to headline, link and excerpt (or metadata only), or record the licence first.");
+        }
+        if (d.op === "approve" && d.limited_use !== "yes") {
+          throw new Error("This source's licence has not been reviewed. Confirm limited use (headlines, links and short excerpts) to approve it.");
+        }
+        limitedUse = true;
       }
       if (d.op === "approve") await tx`update sources set status = 'approved', updated_at = now() where id = ${d.id}`;
       if (d.op === "enable") await tx`update sources set enabled = true, next_fetch_at = now(), updated_at = now() where id = ${d.id}`;
@@ -33,7 +44,10 @@ export async function sourceDecisionAction(_p: State, form: FormData): Promise<S
       }
       await tx`update analyst_reviews set status = ${d.op === "reject" ? "rejected" : "approved"}, decided_by = ${s.userId}, decided_at = now(), decision_note = ${d.note ?? d.op}
                where item_type = 'source' and item_id = ${d.id} and status = 'open' and ${d.op !== "disable"}`;
-      await audit(tx, s, `source.${d.op}`, "source", d.id, { note: d.note ?? null });
+      await audit(tx, s, `source.${d.op}`, "source", d.id, {
+        note: d.note ?? null,
+        ...(limitedUse ? { limited_use: `licence review pending; ${src.usage_policy}, excerpts up to ${src.max_excerpt_chars} characters` } : {}),
+      });
     });
     revalidatePath("/sources");
     return { ok: `Source ${d.op === "approve" ? "approved" : d.op + "d"}.` };
@@ -58,6 +72,9 @@ export async function updateSourceAction(_p: State, form: FormData): Promise<Sta
       origin_group: z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9_.-]{1,60}$/, "Origin group: lower-case letters, digits, '.', '_' or '-'").optional(),
     }).parse(Object.fromEntries(["id", "reliability", "reliability_rationale", "fetch_interval_minutes", "max_excerpt_chars", "usage_policy", "license_type", "license_notes", "origin_group"]
       .map((k) => [k, form.get(k) || undefined])));
+    if (d.license_type === "review_required" && d.usage_policy === "full_text") {
+      throw new Error("Full text needs a recorded licence: choose a licence type, or keep usage to headline, link and excerpt.");
+    }
     await withRls(s, async (tx) => {
       const r = await tx`
         update sources set reliability = ${d.reliability}, reliability_rationale = ${d.reliability_rationale},

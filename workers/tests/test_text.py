@@ -22,6 +22,19 @@ def test_language_detection(text, expected):
     assert detect_language(text)[0] == expected
 
 
+@pytest.mark.parametrize("text,hint,expected", [
+    # Real headlines from English feeds that were misdetected: "UN" read as the French "un",
+    # and "Türkiye" outweighing the English words.
+    ("UN says 25 seafarers killed in, around Hormuz since US-Israel war on Iran 'Situation cannot become new normal', says UN's envoy",
+     "en", "en"),
+    ("Türkiye, Qatar sign 5 agreements, including mutual defense pact", "en", "en"),
+    # Clear evidence still overrides the feed's declared language.
+    ("Le président est arrivé dans la capitale pour une visite de deux jours et les discussions", "en", "fr"),
+])
+def test_language_detection_uses_feed_language_and_ignores_acronyms(text, hint, expected):
+    assert detect_language(text, hint)[0] == expected
+
+
 def test_arabic_normalisation_unifies_orthography_and_digits():
     assert normalize_arabic("إصابة") == normalize_arabic("اصابه")
     assert normalize_arabic("مُسَيَّرة") == normalize_arabic("مسيرة")

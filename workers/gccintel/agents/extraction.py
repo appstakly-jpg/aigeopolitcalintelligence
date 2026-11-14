@@ -22,18 +22,16 @@ from zoneinfo import ZoneInfo
 from ..llm.base import LLMError, LLMUnavailable
 from ..llm.service import LLMService
 from ..log import get_logger
-from ..text import injection
+from ..text import events, injection
 from ..text.gazetteer import GCC_CODES, Gazetteer, ResolvedLocation
 from ..text.normalize import clean_text, match_form, normalize_arabic, split_sentences
 from ..text.taxonomy import Taxonomy
 
 log = get_logger(__name__)
 
-EXTRACTOR_VERSION = "rules-v1"
-SECONDARY_GCC_RELEVANT = {"drone_missile", "maritime_incident", "shipping_disruption", "energy_disruption",
-                          "cross_border_attack", "sanctions", "terrorism", "border_restrictions"}
+EXTRACTOR_VERSION = "rules-v2"
 MARITIME_REGIONS = {"gulf_waters", "red_sea", "arabian_sea"}
-CONFLICT_NEIGHBOURS = {"yemen", "iraq"}  # theatres bordering GCC states
+NON_SECURITY_CATEGORIES = {"protest", "diplomatic_crisis", "policy_change"}
 
 _WORD_NUM = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9,
              "ten": 10, "eleven": 11, "twelve": 12, "a": 1, "an": 1}
@@ -301,13 +299,37 @@ def compute_relevance(location: ResolvedLocation, categories: list[str], gazette
     region = location.entity.region if location.entity else None
     if region in MARITIME_REGIONS:
         return 0.7, f"strategic waterway ({location.entity.name})"
-    if region in CONFLICT_NEIGHBOURS and set(categories) & {"armed_clash", "political_violence"}:
-        return 0.5, f"conflict in a neighbouring theatre ({region}) with direct GCC security linkage"
-    if region and set(categories) & SECONDARY_GCC_RELEVANT:
-        return 0.5, f"secondary region ({region}) with GCC-relevant event type"
+    # Every gazetteer region is part of the coverage area (the GCC plus Iraq, Iran, Yemen, Israel and
+    # Palestine, Jordan, Lebanon, Syria, Egypt, the Horn of Africa and the Red Sea): security events
+    # there are monitored; political and social news there only with a GCC link.
+    if region and set(categories) - NON_SECURITY_CATEGORIES:
+        return 0.5, f"security event in the coverage area ({region})"
     if region:
-        return 0.3, f"secondary region ({region}); no GCC linkage detected"
+        return 0.3, f"coverage area ({region}): political or social news without a security event or GCC link"
     return 0.1, "no location resolved"
+
+
+def _not_an_event_report(title: str, text: str, categories: list[str]) -> str | None:
+    """Why an item with violence or damage keywords does not report a new event, or None if it does."""
+    if not set(categories) & events.KINETIC:
+        return None
+    if events.is_commentary(title):
+        return "Analysis, opinion or question headline, not an event report"
+    if events.is_tally(title):
+        return "Summary of earlier events (a running tally), not a new event"
+    if events.is_reaction(title) and not events.event_cue(_strip_reaction_object(title)):
+        return "Reaction or statement about events, not an event report"
+    sentences = split_sentences(text)
+    lead = " ".join(sentences[:2]) if sentences else title
+    if not events.event_cue(f"{title}. {lead}"):
+        return "No specific event described (context, capability or policy news)"
+    return None
+
+
+def _strip_reaction_object(title: str) -> str:
+    """'Kuwait condemns Houthi attacks on Saudi Arabia' -> 'Kuwait': the attacks are what the reaction is about."""
+    m = events._REACTION_EN.search(title) or events._REACTION_AR.search(normalize_arabic(title))
+    return title[: m.start()] if m else title
 
 
 def rule_extract(*, title: str, excerpt: str, published_at: datetime | None, language: str,
@@ -315,10 +337,14 @@ def rule_extract(*, title: str, excerpt: str, published_at: datetime | None, lan
                  tz_name: str = "Asia/Riyadh") -> Extraction:
     title = clean_text(title)
     excerpt = clean_text(excerpt)
+    notes: list[str] = []
+    # A dateline names where the story was filed, not where the event happened.
+    excerpt, dateline = events.strip_dateline(excerpt)
+    if dateline:
+        notes.append(f"Dateline '{dateline}' ignored as a location (where the story was filed).")
     full = f"{title}. {excerpt}" if excerpt else title
     flags = injection.flags(full)
     safe, removed = injection.strip_injected_sentences(full)
-    notes: list[str] = []
     if removed:
         notes.append(f"Possible prompt injection: {removed} instruction-like sentence(s) ignored during extraction.")
     safe_title = title if not injection.scan(title) else ""
@@ -326,8 +352,16 @@ def rule_extract(*, title: str, excerpt: str, published_at: datetime | None, lan
     classes = taxonomy.classify(safe)
     categories = [c.key for c in classes]
     scores = {c.key: c.score for c in classes}
+    not_event = _not_an_event_report(safe_title, safe, categories)
+    if not_event:
+        kept = [c for c in categories if c not in events.KINETIC]
+        notes.append(f"{not_event}; violence and damage categories not applied"
+                     + (f" ({', '.join(c for c in categories if c in events.KINETIC)})." if len(kept) < len(categories) else "."))
+        categories, scores = kept, {k: v for k, v in scores.items() if k in kept}
     location = gazetteer.resolve(safe, safe_title)
     relevance, reason = compute_relevance(location, categories, gazetteer)
+    if not_event and not categories:
+        reason = not_event
     killed, injured, cas_claims, cas_note = extract_casualties(safe)
     stance = detect_stance(safe_title, safe, source_type)
     wire = detect_wire(full)
@@ -349,7 +383,7 @@ def rule_extract(*, title: str, excerpt: str, published_at: datetime | None, lan
 
     if location.notes:
         notes.extend(location.notes)
-    if classes and max(scores.values()) < 2:
+    if scores and max(scores.values()) < 2:
         notes.append("Event type inferred from a single weak keyword; classification confidence is low.")
     if occ_precision == "reported":
         notes.append("Event time not stated; using the publication time.")

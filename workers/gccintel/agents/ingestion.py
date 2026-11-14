@@ -9,6 +9,7 @@ excerpt each source's usage policy permits. Every fetch writes a source_health r
 from __future__ import annotations
 
 import hashlib
+import re
 import time
 from datetime import UTC, datetime, timedelta
 
@@ -32,6 +33,9 @@ log = get_logger(__name__)
 AGENT = "ingestion-agent"
 NEAR_DUP_HAMMING = 6
 NEAR_DUP_JACCARD = 0.6
+NEAR_DUP_TITLE_JACCARD = 0.5        # headline word-pair overlap for a copy
+NEAR_DUP_MIN_EXCERPT_WORDS = 25     # or: excerpts this long ...
+NEAR_DUP_EXCERPT_JACCARD = 0.8      # ... reproduced almost word for word under a new headline
 MAX_ITEMS_PER_FETCH = 100
 FAILURE_BACKOFF_MINUTES = [5, 15, 60, 180, 720]
 
@@ -62,8 +66,39 @@ def excerpt_for(source: dict, text: str) -> str | None:
     return clean_text(text, int(source["max_excerpt_chars"])) or None
 
 
+_NAME_RE = re.compile(r"[^\W\d_][\w'\u2019-]*|\d+", re.UNICODE)
+
+
+def _names_substituted(title: str, other_title: str) -> bool:
+    """True when each headline has capitalised words or numbers the other lacks, i.e. a name or
+    figure was swapped rather than words added ("Mongolia - Level 1: ..." / "Samoa - Level 1: ...")."""
+    def names(t: str) -> set[str]:
+        return {w.lower() for w in _NAME_RE.findall(t) if w[:1].isupper() or w.isdigit()}
+    a, b = names(title), names(other_title)
+    return bool(a - b) and bool(b - a)
+
+
+def _is_copy(title: str, summary: str, other_title: str, other_summary: str, sim: float, distance: int,
+             same_origin: bool = False) -> bool:
+    """A near copy keeps its headline (lightly edited at most) or reproduces a long excerpt almost
+    word for word. Short, templated items with different headlines are separate items even when
+    their text is nearly identical, e.g. one government's travel advice for several countries
+    ("Bahrain travel advice" / "Kuwait travel advice" with the same change note). Within one
+    publisher, headlines that swap a name or figure are separate items too; across publishers that
+    case still counts as a copy, which is the cautious choice for corroboration."""
+    if not ((distance <= NEAR_DUP_HAMMING and sim >= 0.35) or sim >= NEAR_DUP_JACCARD):
+        return False
+    if same_origin and _names_substituted(title, other_title):
+        return False
+    if jaccard(title, other_title) >= NEAR_DUP_TITLE_JACCARD:
+        return True
+    long_enough = min(len(summary.split()), len(other_summary.split())) >= NEAR_DUP_MIN_EXCERPT_WORDS
+    return long_enough and jaccard(summary, other_summary) >= NEAR_DUP_EXCERPT_JACCARD
+
+
 def _near_duplicate(conn: psycopg.Connection, tenant_id: str, sh: int, text: str, content_hash: str,
-                    exclude_source: str) -> tuple[dict | None, float]:
+                    exclude_source: str, title: str = "", summary: str = "",
+                    own_origin: str | None = None) -> tuple[dict | None, float]:
     """Earliest recent article that this item copies (same content hash, or SimHash+Jaccard near copy)."""
     exact = fetch_one(conn, """
         select id, source_id, meta, attributed_origin, published_at from articles
@@ -81,7 +116,8 @@ def _near_duplicate(conn: psycopg.Connection, tenant_id: str, sh: int, text: str
         if d > 16:
             continue
         sim = jaccard(text, f"{r['title']} {r['excerpt'] or ''}")
-        if (d <= NEAR_DUP_HAMMING and sim >= 0.35) or sim >= NEAR_DUP_JACCARD:
+        same_origin = own_origin is not None and (r["meta"] or {}).get("origin_key") == own_origin
+        if _is_copy(title or text, summary, r["title"], r["excerpt"] or "", sim, d, same_origin):
             # prefer the earliest copy as the parent
             if best is None or sim > best_sim + 0.1 or (
                     abs(sim - best_sim) <= 0.1 and (r["published_at"] or r["retrieved_at"]) < (best["published_at"] or best["retrieved_at"])):
@@ -111,17 +147,28 @@ def store_item(conn: psycopg.Connection, source: dict, item: RawItem) -> str | N
         return None
     title = clean_text(item.title, 500)
     summary = clean_text(item.summary)
+    excerpt_note = None
+    stored = excerpt_for(source, summary)
+    if stored and fetch_one(conn, """select 1 from articles where tenant_id = %s and source_id = %s and excerpt = %s
+                                     and title <> %s limit 1""", (source["tenant_id"], source["id"], stored, title)):
+        # The feed gave this item another item's description (seen on a live news-agency feed):
+        # keep the headline and link, drop the mismatched text so extraction is not misled.
+        summary, excerpt_note = "", "description identical to another item of this feed with a different headline; not used"
     text = f"{title} {summary}".strip()
     lang, lang_conf = detect_language(text, item.language_hint or source["language"])
     content_hash = hashlib.sha256(match_form(text).encode("utf-8")).hexdigest()
     sh = simhash(text)
-    parent, sim = _near_duplicate(conn, source["tenant_id"], sh, text, content_hash, str(source["id"]))
+    own_origin = f"origin:{source.get('origin_group') or source['id']}"
+    parent, sim = _near_duplicate(conn, source["tenant_id"], sh, text, content_hash, str(source["id"]), title, summary,
+                                  own_origin)
     wire = detect_wire(text)
     if not wire and parent and parent.get("attributed_origin"):
         wire = parent["attributed_origin"]
     okey = origin_key(source, item, wire, parent)
     flags = injection.flags(text)
     meta = {"origin_key": okey, "guid": item.guid, "published_precision": item.published_precision}
+    if excerpt_note:
+        meta["excerpt_note"] = excerpt_note
     if item.publisher_domain:
         meta["publisher_domain"] = item.publisher_domain
     row = fetch_one(conn, """
@@ -177,6 +224,8 @@ def ingest_source(conn: psycopg.Connection, source: dict, fetcher: PoliteFetcher
     if result.error:
         failures = int(source["consecutive_failures"]) + 1
         backoff = FAILURE_BACKOFF_MINUTES[min(failures, len(FAILURE_BACKOFF_MINUTES)) - 1]
+        if result.retry_after_seconds:  # the server said when to come back (429/503 Retry-After)
+            backoff = max(backoff, -(-result.retry_after_seconds // 60))
         execute(conn, """
             update sources set last_error = %s, last_error_at = now(), consecutive_failures = %s,
                    next_fetch_at = now() + make_interval(mins => greatest(fetch_interval_minutes, %s))

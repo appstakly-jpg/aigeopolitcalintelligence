@@ -19,6 +19,7 @@ _ZERO_WIDTH_RE = re.compile("[​‌‍⁠﻿‪-‮⁦-⁩]")
 _AR_DIACRITICS_RE = re.compile("[ؐ-ًؚ-ٰٟۖ-ۭ]")
 _TATWEEL = "ـ"
 _PUNCT_RE = re.compile(r"[^\w\s]", re.UNICODE)
+_POSSESSIVE_RE = re.compile(r"(?<=\w)['’]s\b")
 
 _AR_CHAR_MAP = str.maketrans(
     {
@@ -64,11 +65,30 @@ def strip_html(text: str) -> str:
     return html.unescape(text)
 
 
+_MOJIBAKE_RE = re.compile("[ØÙÚÛ][\u0080-\u00ff\u0152-\u2122]|Ã[\u0080-\u00bf]|â€")
+
+
+def repair_mojibake(text: str) -> str:
+    """Undo UTF-8 text that was decoded as Windows-1252 somewhere upstream ("Ø£Ø·ÙØ§Ù„" -> "أطفال"),
+    seen in live Al Jazeera Arabic video titles. Only applied when the whole text re-decodes cleanly."""
+    if not text or not _MOJIBAKE_RE.search(text):
+        return text
+    raw = bytearray()
+    try:
+        for ch in text:
+            o = ord(ch)
+            raw.extend(bytes([o]) if o <= 0xFF else ch.encode("cp1252"))
+        fixed = raw.decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return text
+    return fixed
+
+
 def clean_text(text: str | None, max_chars: int | None = None) -> str:
     """Display-safe text: no HTML, no zero-width/bidi control characters, collapsed spaces."""
     if not text:
         return ""
-    text = unicodedata.normalize("NFKC", strip_html(text))
+    text = unicodedata.normalize("NFKC", repair_mojibake(strip_html(text)))
     text = _ZERO_WIDTH_RE.sub("", text)
     text = "".join(ch for ch in text if ch in "\n\t" or unicodedata.category(ch)[0] != "C")
     text = _WS_RE.sub(" ", text).strip()
@@ -94,6 +114,8 @@ def match_form(text: str | None) -> str:
     text = unicodedata.normalize("NFKC", text).lower()
     text = _ZERO_WIDTH_RE.sub("", text)
     text = normalize_arabic(text)
+    # "UAE's" / "Yemen’s" -> "UAE" / "Yemen": a possessive must not hide a place or actor name.
+    text = _POSSESSIVE_RE.sub("", text)
     text = text.replace("'", "").replace("’", "").replace("`", "")
     text = _PUNCT_RE.sub(" ", text)
     return _WS_RE.sub(" ", text).strip()

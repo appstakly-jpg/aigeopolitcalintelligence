@@ -94,7 +94,17 @@ export default async function SourcesPage() {
                 ) : null}
                 {can.admin(s.role) ? (
                   <div className="flex flex-wrap gap-1.5">
-                    {x.status === "proposed" ? <ActionForm action={sourceDecisionAction} submit="Approve" className="flex"><input type="hidden" name="id" value={x.id} /><input type="hidden" name="op" value="approve" /></ActionForm> : null}
+                    {x.status === "proposed" ? (
+                      <ActionForm action={sourceDecisionAction} submit="Approve" className="flex flex-wrap items-center gap-1.5">
+                        <input type="hidden" name="id" value={x.id} /><input type="hidden" name="op" value="approve" />
+                        {x.license_type === "review_required" ? (
+                          <label className="flex basis-full items-start gap-1.5">
+                            <input type="checkbox" name="limited_use" value="yes" required className="mt-0.5" />
+                            <span>Licence not reviewed yet: use headlines, links and excerpts of up to {x.max_excerpt_chars} characters only</span>
+                          </label>
+                        ) : null}
+                      </ActionForm>
+                    ) : null}
                     {x.status === "approved" && !x.enabled ? <ActionForm action={sourceDecisionAction} submit="Enable" className="flex"><input type="hidden" name="id" value={x.id} /><input type="hidden" name="op" value="enable" /></ActionForm> : null}
                     {x.enabled ? <ActionForm action={sourceDecisionAction} submit="Disable" variant="outline" className="flex"><input type="hidden" name="id" value={x.id} /><input type="hidden" name="op" value="disable" /></ActionForm> : null}
                     {x.status === "proposed" ? <ActionForm action={sourceDecisionAction} submit="Reject" variant="outline" className="flex"><input type="hidden" name="id" value={x.id} /><input type="hidden" name="op" value="reject" /></ActionForm> : null}

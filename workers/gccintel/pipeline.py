@@ -102,6 +102,14 @@ def process_article(ctx: RunContext, article_id: str) -> dict:
                     (article_id, ctx.tenant_id))
     if art is None or art["status"] != "new":
         return {"article_id": article_id, "decision": "skipped"}
+    if (art["source_config"] or {}).get("content_kind") == "travel_advisory":
+        # Government travel advice is context for a country, not an incident: it stays with its source
+        # and is shown on country pages.
+        execute(conn, "update articles set status = 'processed', relevance = null where id = %s", (art["id"],))
+        execute(conn, """insert into incident_candidates(tenant_id, article_id, extractor, extraction, decision, decision_reason)
+                         values (%s, %s, 'rules', '{}'::jsonb, 'discarded', %s)""",
+                (ctx.tenant_id, art["id"], "official travel advisory: shown on country pages, not an incident"))
+        return {"article_id": str(art["id"]), "decision": "advisory"}
     tz = (art["source_config"] or {}).get("timezone") or "Asia/Riyadh"
     if translate_article(conn, art, ctx.llm, int(art["max_excerpt_chars"])):
         ctx.stats["translated"] += 1

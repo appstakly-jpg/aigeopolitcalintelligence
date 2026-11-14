@@ -16,6 +16,8 @@ import threading
 import time
 import urllib.robotparser
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from urllib.parse import urlsplit
 
 import httpx
@@ -27,6 +29,22 @@ from ..text.urls import is_private_host
 log = get_logger(__name__)
 
 ROBOTS_TTL_SECONDS = 6 * 3600
+
+
+def retry_after_seconds(headers: dict[str, str]) -> int | None:
+    """Seconds asked for by a Retry-After header (delta-seconds or HTTP date), capped at one day."""
+    raw = (headers.get("retry-after") or headers.get("Retry-After") or "").strip()
+    if not raw:
+        return None
+    if raw.isdigit():
+        return min(int(raw), 86400)
+    try:
+        when = parsedate_to_datetime(raw)
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=UTC)
+        return max(0, min(int((when - datetime.now(UTC)).total_seconds()), 86400))
+    except (TypeError, ValueError, IndexError):
+        return None
 
 
 class FetchBlocked(Exception):
@@ -83,6 +101,9 @@ class PoliteFetcher:
         parser: urllib.robotparser.RobotFileParser | None = None
         allow_all = False
         try:
+            # The robots.txt request counts against the host's pacing like any other request.
+            with self._lock:
+                self._last_hit[parts.netloc] = time.monotonic()
             resp = self.client.get(origin + "/robots.txt", timeout=10.0)
             if resp.status_code >= 500:
                 allow_all = False  # unreachable -> assume disallow (RFC 9309 2.3.1.4)
@@ -117,9 +138,12 @@ class PoliteFetcher:
                 delay = None
         return max(self.settings.per_host_min_interval_seconds, float(delay or 0))
 
-    def _throttle(self, url: str) -> None:
+    def _throttle(self, url: str, min_interval: float | None = None) -> None:
+        """Wait so that requests to one host are at least the larger of the configured interval, the
+        host's robots.txt Crawl-delay and the source's own minimum (e.g. an API's published rate limit)
+        apart."""
         host = urlsplit(url).netloc
-        wait = self._crawl_delay(url)
+        wait = max(self._crawl_delay(url), float(min_interval or 0))
         with self._lock:
             last = self._last_hit.get(host)
             now = time.monotonic()
@@ -130,7 +154,7 @@ class PoliteFetcher:
 
     # -- fetch ------------------------------------------------------------
     def get(self, url: str, *, etag: str | None = None, last_modified: str | None = None,
-            check_robots: bool = True) -> FetchResponse:
+            check_robots: bool = True, min_interval: float | None = None) -> FetchResponse:
         if not url.lower().startswith(("http://", "https://")):
             raise FetchBlocked(f"unsupported URL scheme: {url}")
         if not self.settings.allow_private_network_fetch and is_private_host(url):
@@ -140,7 +164,7 @@ class PoliteFetcher:
             robots_ok = self.robots_allowed(url)
             if not robots_ok:
                 raise FetchBlocked("disallowed by robots.txt")
-        self._throttle(url)
+        self._throttle(url, min_interval)
         headers = {}
         if etag:
             headers["If-None-Match"] = etag
